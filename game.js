@@ -447,13 +447,13 @@ function createSpaceBackground(scene) {
     // Atmospheric Arc Layer (Bottom Boundary) - HIGHLY VISIBLE
     const layer = scene.add.graphics();
 
-    // Make it VERY visible with stronger opacity
-    layer.fillStyle(0x888888, 0.6); // Darker grey, more opaque
+    // Thin grey layer with moderate opacity
+    layer.fillStyle(0x999999, 0.4);
 
-    // Simple arc from bottom-left to bottom-right
+    // Arc very close to bottom edge
     const centerX = scene.scale.width / 2; // 400
-    const centerY = 650; // Just below screen
-    const radius = 200; // Gentler curve
+    const centerY = 620; // Very close to bottom (600)
+    const radius = 80; // Small radius for gentle, thin curve
 
     layer.beginPath();
     layer.arc(centerX, centerY, radius, Math.PI, 0, true);
@@ -461,23 +461,23 @@ function createSpaceBackground(scene) {
     layer.lineTo(0, scene.scale.height);
     layer.closePath();
     layer.fillPath();
-    layer.setDepth(100); // ABOVE everything to ensure visibility
+    layer.setDepth(-85); // Behind gameplay elements
     layer.setScrollFactor(0);
 
-    // Bright glow edge
-    layer.lineStyle(3, 0xffffff, 0.8); // White, very visible
+    // Subtle white edge
+    layer.lineStyle(2, 0xcccccc, 0.5);
     layer.beginPath();
     layer.arc(centerX, centerY, radius, Math.PI, 0, true);
     layer.strokePath();
 
-    // Store for collision - use simple fixed Y instead of arc math
-    gameState.bottomBoundary = 570; // Fixed Y value for collision
+    // Collision boundary - very forgiving
+    gameState.bottomBoundary = 580; // Crash at y=580
 
     // Gentle pulsing
     scene.tweens.add({
         targets: layer,
-        alpha: 0.7,
-        duration: 2000,
+        alpha: 0.5,
+        duration: 3000,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
