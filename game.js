@@ -443,45 +443,6 @@ function createSpaceBackground(scene) {
     const nebula = scene.add.ellipse(600, 300, 300, 200, COLORS.NEBULA, 0.1);
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
-
-    // Atmospheric Arc Layer (Bottom Boundary) - HIGHLY VISIBLE
-    const layer = scene.add.graphics();
-
-    // Thin grey layer with moderate opacity
-    layer.fillStyle(0x999999, 0.4);
-
-    // Arc very close to bottom edge
-    const centerX = scene.scale.width / 2; // 400
-    const centerY = 620; // Very close to bottom (600)
-    const radius = 80; // Small radius for gentle, thin curve
-
-    layer.beginPath();
-    layer.arc(centerX, centerY, radius, Math.PI, 0, true);
-    layer.lineTo(scene.scale.width, scene.scale.height);
-    layer.lineTo(0, scene.scale.height);
-    layer.closePath();
-    layer.fillPath();
-    layer.setDepth(-85); // Behind gameplay elements
-    layer.setScrollFactor(0);
-
-    // Subtle white edge
-    layer.lineStyle(2, 0xcccccc, 0.5);
-    layer.beginPath();
-    layer.arc(centerX, centerY, radius, Math.PI, 0, true);
-    layer.strokePath();
-
-    // Collision boundary - very forgiving
-    gameState.bottomBoundary = 580; // Crash at y=580
-
-    // Gentle pulsing
-    scene.tweens.add({
-        targets: layer,
-        alpha: 0.5,
-        duration: 3000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
 }
 
 function create() {
@@ -662,12 +623,8 @@ function update() {
 
     // Check boundaries
     // Top: crash if fully off screen
-    if (gameState.rocket.y < -40) {
-        gameOver();
-    }
-
-    // Bottom: crash if rocket goes below the boundary (simple fixed Y)
-    if (gameState.rocket.y > gameState.bottomBoundary) {
+    // Bottom: crash only when rocket touches the bottom edge (y >= 600)
+    if (gameState.rocket.y < -40 || gameState.rocket.y >= 600) {
         gameOver();
     }
 
