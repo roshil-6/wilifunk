@@ -490,6 +490,9 @@ function create() {
         gameState.rocket.body.setOffset(5, 7);
         gameState.rocket.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
 
+        // Disable gravity until game starts
+        gameState.rocket.body.allowGravity = false;
+
         // -- REALISTIC ENGINE EXHAUST (Particles) --
         // We create an emitter manager directly
         // Note: In Phaser 3.60, syntax is slightly different but this is standard
