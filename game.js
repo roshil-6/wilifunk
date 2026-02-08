@@ -849,6 +849,52 @@ function startGame() {
 
 
 
+// ====================================
+// COLLISION HANDLERS
+// ====================================
+function onCollision(rocket, obstacle) {
+    // Check if it's a dummy UFO - don't crash
+    if (obstacle.isDummy) {
+        return; // No crash for dummy UFOs
+    }
+
+    // Check if shield is active
+    if (gameState.hasShield) {
+        deactivateShield();
+        obstacle.destroy();
+        return;
+    }
+
+    // Otherwise, game over
+    gameOver();
+}
+
+function collectStar(rocket, star) {
+    // Collect the star (never causes crash)
+    star.destroy();
+
+    gameState.collectedStars++;
+    starText.setText('STARS: ' + gameState.collectedStars + '/' + GAME.STARS_FOR_SHIELD);
+
+    // Activate shield if enough stars
+    if (gameState.collectedStars >= GAME.STARS_FOR_SHIELD) {
+        activateShield();
+        gameState.collectedStars = 0;
+        starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
+    }
+
+    // Visual feedback
+    starText.setScale(1.3);
+    sceneRef.tweens.add({
+        targets: starText,
+        scale: 1,
+        duration: 200
+    });
+}
+
+// ====================================
+// SPAWNING
+// ====================================
 function spawnObstacle() {
     if (gameState.isGameOver) return;
 
