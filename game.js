@@ -443,6 +443,30 @@ function createSpaceBackground(scene) {
     const nebula = scene.add.ellipse(600, 300, 300, 200, COLORS.NEBULA, 0.1);
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
+
+    // Stratosphere/Ozone Layer (Visual Boundary)
+    const stratosphereY = 580;
+    const stratosphere = scene.add.graphics();
+    stratosphere.fillGradientStyle(0x00ffff, 0x00ffff, 0x0088ff, 0x0088ff, 0.3, 0.3, 0.1, 0.1);
+    stratosphere.fillRect(0, stratosphereY, scene.scale.width, 20);
+    stratosphere.setDepth(-90);
+    stratosphere.setScrollFactor(0);
+
+    // Add atmospheric glow effect
+    const glow = scene.add.graphics();
+    glow.lineStyle(2, 0x00ffff, 0.5);
+    glow.strokeRect(0, stratosphereY, scene.scale.width, 20);
+    glow.setDepth(-89);
+    glow.setScrollFactor(0);
+
+    // Animate the glow
+    scene.tweens.add({
+        targets: glow,
+        alpha: 0.3,
+        duration: 2000,
+        yoyo: true,
+        repeat: -1
+    });
 }
 
 function create() {
@@ -622,9 +646,9 @@ function update() {
     }
 
     // Check boundaries
-    // Only crash if rocket is FULLY off screen (very forgiving on bottom)
-    // Screen height is 600, rocket height ~40px, so 680 ensures it's completely gone
-    if (gameState.rocket.y < -40 || gameState.rocket.y > 680) {
+    // Top: crash if fully off screen
+    // Bottom: crash if rocket center passes the stratosphere layer (y = 580)
+    if (gameState.rocket.y < -40 || gameState.rocket.y > 580) {
         gameOver();
     }
 
