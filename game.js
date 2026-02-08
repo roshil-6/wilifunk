@@ -14,7 +14,7 @@ const config = {
     parent: 'phaser-game',
     backgroundColor: '#0a0a1a',
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE, // Resizes game to fit window
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
     physics: {
@@ -415,7 +415,8 @@ function createSpaceBackground(scene) {
     // Gradient background
     const bg = scene.add.graphics();
     bg.fillGradientStyle(0x0a0a1a, 0x0a0a1a, 0x1a0a2e, 0x1a0a2e, 1);
-    bg.fillRect(0, 0, 800, 600);
+    bg.fillRect(0, 0, scene.scale.width, scene.scale.height);
+    bg.setScrollFactor(0); // Fix to camera
     bg.setDepth(-100);
 
     // Star layers (parallax)
@@ -426,8 +427,8 @@ function createSpaceBackground(scene) {
 
         for (let i = 0; i < count; i++) {
             const star = scene.add.circle(
-                Phaser.Math.Between(0, 850),
-                Phaser.Math.Between(0, 600),
+                Phaser.Math.Between(0, scene.scale.width + 50),
+                Phaser.Math.Between(0, scene.scale.height),
                 Phaser.Math.FloatBetween(size * 0.5, size),
                 COLORS.STAR,
                 Phaser.Math.FloatBetween(0.3, 0.8)
@@ -705,18 +706,11 @@ function thrust() {
 
     // Thrust visual effect
     // Thrust visual effect (Particle Boost)
+    // Thrust visual effect (Particle Boost)
     if (gameState.exhaust) {
-        // Increase particle speed/scale temporarily
-        gameState.exhaust.setSpeed({ min: 200, max: 400 });
-        gameState.exhaust.setScale({ start: 1.5, end: 0 });
-
-        sceneRef.time.delayedCall(100, () => {
-            if (gameState.exhaust) {
-                // Reset to normal
-                gameState.exhaust.setSpeed({ min: 100, max: 200 });
-                gameState.exhaust.setScale({ start: 1, end: 0 });
-            }
-        });
+        // Safe boost for Phaser 3.60
+        // We can emit a few extra particles
+        gameState.exhaust.emitParticle(5);
     }
 
     // Small particle burst
@@ -822,9 +816,11 @@ function spawnObstacle() {
     const gapHeight = GAME.GAP_SIZE;
     const type = Phaser.Math.RND.pick(['mountain', 'planet']);
 
+    const spawnX = sceneRef.scale.width + 100;
+
     if (type === 'planet') {
         // Spawn Planets
-        const topPlanet = gameState.obstacles.create(850, gapY - 180, 'planet');
+        const topPlanet = gameState.obstacles.create(spawnX, gapY - 180, 'planet');
         topPlanet.setOrigin(0.5, 0.5);
         topPlanet.body.setCircle(90); // Circular hitbox
         topPlanet.body.allowGravity = false;
@@ -832,7 +828,7 @@ function spawnObstacle() {
         topPlanet.body.setImmovable(true);
         topPlanet.scored = false;
 
-        const bottomPlanet = gameState.obstacles.create(850, gapY + gapHeight + 180, 'planet');
+        const bottomPlanet = gameState.obstacles.create(spawnX, gapY + gapHeight + 180, 'planet');
         bottomPlanet.setOrigin(0.5, 0.5);
         bottomPlanet.body.setCircle(90);
         bottomPlanet.body.allowGravity = false;
@@ -843,7 +839,7 @@ function spawnObstacle() {
     } else {
         // Spawn Mountains (Use 'mountain' texture)
         // Top Mountain (Flipped)
-        const topObstacle = gameState.obstacles.create(850, gapY - 200, 'mountain');
+        const topObstacle = gameState.obstacles.create(spawnX, gapY - 200, 'mountain');
         topObstacle.setOrigin(0.5, 1);
         topObstacle.flipY = true; // Flip for top stalactite look
         topObstacle.body.allowGravity = false;
@@ -853,7 +849,7 @@ function spawnObstacle() {
         topObstacle.scored = false;
 
         // Bottom Mountain
-        const bottomObstacle = gameState.obstacles.create(850, gapY + gapHeight, 'mountain');
+        const bottomObstacle = gameState.obstacles.create(spawnX, gapY + gapHeight, 'mountain');
         bottomObstacle.setOrigin(0.5, 0);
         bottomObstacle.body.allowGravity = false;
         bottomObstacle.body.setVelocityX(-gameState.obstacleSpeed);
@@ -866,8 +862,8 @@ function spawnObstacle() {
 function spawnFlyingAsteroid() {
     if (gameState.isGameOver) return;
 
-    const y = Phaser.Math.Between(50, 550);
-    const asteroid = gameState.flyingObstacles.create(900, y, 'asteroid');
+    const y = Phaser.Math.Between(50, sceneRef.scale.height - 50);
+    const asteroid = gameState.flyingObstacles.create(sceneRef.scale.width + 100, y, 'asteroid');
 
     asteroid.setOrigin(0.5, 0.5);
     asteroid.body.allowGravity = false;
@@ -882,8 +878,8 @@ function spawnUFO() {
     // Only spawn if score > 2 (Early game)
     if (gameState.score < 2) return;
 
-    const y = Phaser.Math.Between(150, 450);
-    const ufo = gameState.ufos.create(900, y, 'ufo');
+    const y = Phaser.Math.Between(150, sceneRef.scale.height - 150);
+    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, y, 'ufo');
 
     // 30% Chance of Dummy
     const isDummy = Math.random() < 0.3;
@@ -934,8 +930,8 @@ function spawnBlackHole() {
     // One by One rule (Should be redundant with scheduling, but safe to keep)
     if (gameState.blackHoles.getLength() > 0) return;
 
-    const y = Phaser.Math.Between(100, 500);
-    const hole = gameState.blackHoles.create(900, y, 'blackhole');
+    const y = Phaser.Math.Between(100, sceneRef.scale.height - 100);
+    const hole = gameState.blackHoles.create(sceneRef.scale.width + 100, y, 'blackhole');
 
     hole.setCircle(30, 10, 10);
     hole.setOrigin(0.5, 0.5);
@@ -950,8 +946,8 @@ function spawnStar() {
     // 30% chance to spawn a star each cycle
     if (Phaser.Math.Between(0, 100) > 30) return;
 
-    const y = Phaser.Math.Between(100, 500);
-    const star = gameState.starItems.create(900, y, 'starItem');
+    const y = Phaser.Math.Between(100, sceneRef.scale.height - 100);
+    const star = gameState.starItems.create(sceneRef.scale.width + 100, y, 'starItem');
     star.body.allowGravity = false;
     star.body.setVelocityX(-gameState.obstacleSpeed);
     star.setDepth(7);
