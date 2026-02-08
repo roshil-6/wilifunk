@@ -444,45 +444,35 @@ function createSpaceBackground(scene) {
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
 
-    // Stratosphere/Cloud Layer (Visual Boundary) - Curvy Design
-    const stratosphereY = 550; // Lower position
-    const stratosphere = scene.add.graphics();
+    // Atmospheric Arc Layer (Bottom Boundary)
+    const layer = scene.add.graphics();
+    layer.fillStyle(0xaaaaaa, 0.35); // Light grey
 
-    // Draw wavy cloud-like layer using curves
-    stratosphere.fillStyle(0xcccccc, 0.4); // Light grey with transparency
-    stratosphere.beginPath();
-    stratosphere.moveTo(0, stratosphereY);
+    // Draw a circular arc from bottom-left to bottom-right
+    const centerX = scene.scale.width / 2;
+    const centerY = scene.scale.height + 200; // Center below screen
+    const radius = 350; // Large radius for gentle curve
 
-    // Create wavy top edge
-    for (let x = 0; x <= scene.scale.width; x += 40) {
-        const waveHeight = Math.sin(x * 0.05) * 8;
-        stratosphere.lineTo(x, stratosphereY + waveHeight);
-    }
+    layer.beginPath();
+    layer.arc(centerX, centerY, radius, Math.PI * 1.2, Math.PI * 1.8, false);
+    layer.lineTo(scene.scale.width, scene.scale.height);
+    layer.lineTo(0, scene.scale.height);
+    layer.closePath();
+    layer.fillPath();
+    layer.setDepth(-90);
+    layer.setScrollFactor(0);
 
-    // Complete the shape
-    stratosphere.lineTo(scene.scale.width, scene.scale.height);
-    stratosphere.lineTo(0, scene.scale.height);
-    stratosphere.closePath();
-    stratosphere.fillPath();
-    stratosphere.setDepth(-90);
-    stratosphere.setScrollFactor(0);
+    // Subtle glow on the arc edge
+    layer.lineStyle(2, 0xcccccc, 0.3);
+    layer.beginPath();
+    layer.arc(centerX, centerY, radius, Math.PI * 1.2, Math.PI * 1.8, false);
+    layer.strokePath();
 
-    // Add lighter wispy clouds on top
-    const clouds = scene.add.graphics();
-    clouds.fillStyle(0xeeeeee, 0.3); // Very light grey
-    for (let i = 0; i < 5; i++) {
-        const x = (scene.scale.width / 5) * i;
-        const y = stratosphereY - 10 + Math.sin(i) * 5;
-        clouds.fillEllipse(x + 40, y, 80, 15);
-    }
-    clouds.setDepth(-89);
-    clouds.setScrollFactor(0);
-
-    // Subtle pulsing animation
+    // Gentle pulsing
     scene.tweens.add({
-        targets: [stratosphere, clouds],
-        alpha: 0.5,
-        duration: 3000,
+        targets: layer,
+        alpha: 0.4,
+        duration: 4000,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
