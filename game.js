@@ -621,11 +621,13 @@ function update() {
         // For now, standard follow is good enough for a side-scroller.
     }
 
-    // Check boundaries
-    // Top: crash if fully off screen
-    // Bottom: crash with extra tolerance (130px below screen edge)
-    if (gameState.rocket.y < -40 || gameState.rocket.y >= 730) {
-        gameOver();
+    // Check boundaries (only during active gameplay)
+    if (gameState.isPlaying && !gameState.isGameOver) {
+        // Top: crash if fully off screen
+        // Bottom: crash with extra tolerance (130px below screen edge)
+        if (gameState.rocket.y < -40 || gameState.rocket.y >= 730) {
+            gameOver();
+        }
     }
 
     // Scroll stars (parallax)
