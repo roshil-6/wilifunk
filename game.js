@@ -676,8 +676,8 @@ function update() {
     const dy = Math.sqrt(gameState.arcRadius * gameState.arcRadius - dx * dx);
     const arcY = gameState.arcCenterY - dy;
 
-    // Crash if rocket center is below the arc
-    if (gameState.rocket.y > arcY) {
+    // Crash if rocket center is below the arc (with 40px buffer for forgiveness)
+    if (gameState.rocket.y > arcY + 40) {
         gameOver();
     }
 
