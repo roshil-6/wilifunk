@@ -801,10 +801,17 @@ function startGame() {
         loop: true
     });
 
-    // Start UFO spawning (Less frequent)
+    // Start UFO spawning (Less frequent - all dummy/harmless)
     gameState.ufoTimer = sceneRef.time.addEvent({
         delay: 8000, // Every 8 seconds
         callback: spawnUFO,
+        loop: true
+    });
+
+    // Start Big UFO spawning (Rare - dangerous)
+    gameState.bigUfoTimer = sceneRef.time.addEvent({
+        delay: 15000, // Every 15 seconds
+        callback: spawnBigUFO,
         loop: true
     });
 
@@ -944,19 +951,31 @@ function spawnUFO() {
     const y = Phaser.Math.Between(150, sceneRef.scale.height - 150);
     const ufo = gameState.ufos.create(sceneRef.scale.width + 100, y, 'ufo');
 
-    // 30% Chance of Dummy
-    const isDummy = Math.random() < 0.3;
+    // Always dummy (harmless, fast moving)
+    ufo.isDummy = true;
+    ufo.setTint(0x888888); // Grey tint for dummy
+    ufo.body.allowGravity = false;
+    ufo.body.setVelocityX(-gameState.obstacleSpeed * 2.5);
+    ufo.setDepth(6);
+}
 
-    ufo.setOrigin(0.5, 0.5);
+function spawnBigUFO() {
+    if (gameState.isGameOver) return;
+
+    // Only spawn if score > 5
+    if (gameState.score < 5) return;
+
+    const y = Phaser.Math.Between(150, sceneRef.scale.height - 150);
+    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, y, 'ufo');
+
+    // Big dangerous UFO
+    ufo.isDummy = false;
+    ufo.setScale(1.5); // Bigger
+    ufo.setTint(0xff0000); // Red tint for danger
     ufo.body.allowGravity = false;
     ufo.startY = y;
     ufo.sineOffset = 0;
-    ufo.setDepth(7);
-    ufo.isDummy = isDummy;
-
-    if (isDummy) {
-        ufo.setTint(0x00ff00); // Green
-    }
+    ufo.setDepth(6);
 }
 
 function createBlackHoleTexture(scene) {
