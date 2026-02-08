@@ -607,6 +607,13 @@ function update() {
     const velocityY = gameState.rocket.body.velocity.y;
     gameState.rocket.angle = Phaser.Math.Clamp(velocityY * 0.1, -30, 45);
 
+    // Rocket2 Rotation (multiplayer)
+    if (gameState.gameMode === 'MULTI' && gameState.rocket2) {
+        const velocityY2 = gameState.rocket2.body.velocity.y;
+        // Inverted rotation for inverted gravity
+        gameState.rocket2.angle = Phaser.Math.Clamp(-velocityY2 * 0.1, -30, 45);
+    }
+
     // Update Emitter Angle to match Rocket
     // Particles follow automatically, but we might want to rotate the emission angle
     if (gameState.exhaust) {
@@ -617,10 +624,19 @@ function update() {
 
     // Check boundaries (only during active gameplay)
     if (gameState.isPlaying && !gameState.isGameOver) {
-        // Top: crash if fully off screen
-        // Bottom: crash with extra tolerance (130px below screen edge)
-        if (gameState.rocket.y < -40 || gameState.rocket.y >= 730) {
-            gameOver();
+        if (gameState.gameMode === 'MULTI') {
+            // Multiplayer: P1 can't go below 730, P2 can't go above -100
+            if (gameState.rocket.y >= 730) {
+                handleMultiCrash('P1');
+            }
+            if (gameState.rocket2 && gameState.rocket2.y <= -100) {
+                handleMultiCrash('P2');
+            }
+        } else {
+            // Single player: standard boundaries
+            if (gameState.rocket.y < -40 || gameState.rocket.y >= 730) {
+                gameOver();
+            }
         }
     }
 
@@ -802,6 +818,7 @@ function createThrustParticles() {
 function startGame() {
     gameState.isPlaying = true;
     gameState.isGameOver = false;
+    gameState.gameMode = 'SINGLE'; // Reset to single player
     gameState.score = 0;
     gameState.obstacleSpeed = GAME.OBSTACLE_SPEED;
     gameState.spawnRate = GAME.OBSTACLE_SPAWN_RATE;
@@ -811,9 +828,23 @@ function startGame() {
     starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
     starText.setColor('#ffd700');
 
-    // Enable gravity
+    // Hide rocket2 and split line in single player
+    if (gameState.rocket2) {
+        gameState.rocket2.setVisible(false);
+        gameState.rocket2.body.allowGravity = false;
+    }
+    if (gameState.exhaust2) {
+        gameState.exhaust2.setVisible(false);
+    }
+    if (gameState.splitLine) {
+        gameState.splitLine.setVisible(false);
+    }
+
+    // Enable gravity for P1
+    gameState.rocket.setVisible(true);
     gameState.rocket.body.allowGravity = true;
     gameState.rocket.setVelocity(0, 0);
+    gameState.rocket.setPosition(150, 300);
 
     // Start obstacle spawning
     gameState.obstacleTimer = sceneRef.time.addEvent({
