@@ -444,28 +444,48 @@ function createSpaceBackground(scene) {
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
 
-    // Stratosphere/Ozone Layer (Visual Boundary)
-    const stratosphereY = 580;
+    // Stratosphere/Cloud Layer (Visual Boundary) - Curvy Design
+    const stratosphereY = 550; // Lower position
     const stratosphere = scene.add.graphics();
-    stratosphere.fillGradientStyle(0x00ffff, 0x00ffff, 0x0088ff, 0x0088ff, 0.3, 0.3, 0.1, 0.1);
-    stratosphere.fillRect(0, stratosphereY, scene.scale.width, 20);
+
+    // Draw wavy cloud-like layer using curves
+    stratosphere.fillStyle(0xcccccc, 0.4); // Light grey with transparency
+    stratosphere.beginPath();
+    stratosphere.moveTo(0, stratosphereY);
+
+    // Create wavy top edge
+    for (let x = 0; x <= scene.scale.width; x += 40) {
+        const waveHeight = Math.sin(x * 0.05) * 8;
+        stratosphere.lineTo(x, stratosphereY + waveHeight);
+    }
+
+    // Complete the shape
+    stratosphere.lineTo(scene.scale.width, scene.scale.height);
+    stratosphere.lineTo(0, scene.scale.height);
+    stratosphere.closePath();
+    stratosphere.fillPath();
     stratosphere.setDepth(-90);
     stratosphere.setScrollFactor(0);
 
-    // Add atmospheric glow effect
-    const glow = scene.add.graphics();
-    glow.lineStyle(2, 0x00ffff, 0.5);
-    glow.strokeRect(0, stratosphereY, scene.scale.width, 20);
-    glow.setDepth(-89);
-    glow.setScrollFactor(0);
+    // Add lighter wispy clouds on top
+    const clouds = scene.add.graphics();
+    clouds.fillStyle(0xeeeeee, 0.3); // Very light grey
+    for (let i = 0; i < 5; i++) {
+        const x = (scene.scale.width / 5) * i;
+        const y = stratosphereY - 10 + Math.sin(i) * 5;
+        clouds.fillEllipse(x + 40, y, 80, 15);
+    }
+    clouds.setDepth(-89);
+    clouds.setScrollFactor(0);
 
-    // Animate the glow
+    // Subtle pulsing animation
     scene.tweens.add({
-        targets: glow,
-        alpha: 0.3,
-        duration: 2000,
+        targets: [stratosphere, clouds],
+        alpha: 0.5,
+        duration: 3000,
         yoyo: true,
-        repeat: -1
+        repeat: -1,
+        ease: 'Sine.easeInOut'
     });
 }
 
