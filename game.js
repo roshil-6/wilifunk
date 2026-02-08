@@ -444,44 +444,40 @@ function createSpaceBackground(scene) {
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
 
-    // Atmospheric Arc Layer (Bottom Boundary)
+    // Atmospheric Arc Layer (Bottom Boundary) - HIGHLY VISIBLE
     const layer = scene.add.graphics();
-    layer.fillStyle(0xaaaaaa, 0.35); // Light grey
 
-    // Arc parameters - curve from bottom-left (0,600) to bottom-right (800,600)
+    // Make it VERY visible with stronger opacity
+    layer.fillStyle(0x888888, 0.6); // Darker grey, more opaque
+
+    // Simple arc from bottom-left to bottom-right
     const centerX = scene.scale.width / 2; // 400
-    const centerY = scene.scale.height + 100; // 700 (below screen)
-    const radius = Math.sqrt(Math.pow(centerX, 2) + Math.pow(100, 2)); // ~412
-
-    // Calculate angles to touch the bottom corners
-    const startAngle = Math.PI - Math.atan2(100, centerX); // ~2.9 rad
-    const endAngle = Math.atan2(100, centerX); // ~0.24 rad
+    const centerY = 650; // Just below screen
+    const radius = 200; // Gentler curve
 
     layer.beginPath();
-    layer.arc(centerX, centerY, radius, startAngle, endAngle, true);
+    layer.arc(centerX, centerY, radius, Math.PI, 0, true);
     layer.lineTo(scene.scale.width, scene.scale.height);
     layer.lineTo(0, scene.scale.height);
     layer.closePath();
     layer.fillPath();
-    layer.setDepth(-90);
+    layer.setDepth(100); // ABOVE everything to ensure visibility
     layer.setScrollFactor(0);
 
-    // Subtle glow on the arc edge
-    layer.lineStyle(2, 0xcccccc, 0.3);
+    // Bright glow edge
+    layer.lineStyle(3, 0xffffff, 0.8); // White, very visible
     layer.beginPath();
-    layer.arc(centerX, centerY, radius, startAngle, endAngle, true);
+    layer.arc(centerX, centerY, radius, Math.PI, 0, true);
     layer.strokePath();
 
-    // Store arc parameters for collision detection
-    gameState.arcCenterX = centerX;
-    gameState.arcCenterY = centerY;
-    gameState.arcRadius = radius;
+    // Store for collision - use simple fixed Y instead of arc math
+    gameState.bottomBoundary = 570; // Fixed Y value for collision
 
     // Gentle pulsing
     scene.tweens.add({
         targets: layer,
-        alpha: 0.4,
-        duration: 4000,
+        alpha: 0.7,
+        duration: 2000,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
@@ -670,14 +666,8 @@ function update() {
         gameOver();
     }
 
-    // Bottom: crash if rocket goes below the atmospheric arc
-    // Calculate the arc's Y position at the rocket's X coordinate
-    const dx = gameState.rocket.x - gameState.arcCenterX;
-    const dy = Math.sqrt(gameState.arcRadius * gameState.arcRadius - dx * dx);
-    const arcY = gameState.arcCenterY - dy;
-
-    // Crash if rocket center is below the arc (with 80px buffer for forgiveness)
-    if (gameState.rocket.y > arcY + 80) {
+    // Bottom: crash if rocket goes below the boundary (simple fixed Y)
+    if (gameState.rocket.y > gameState.bottomBoundary) {
         gameOver();
     }
 
