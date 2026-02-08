@@ -735,7 +735,7 @@ function thrust() {
     }
 
     // Apply upward thrust
-    gameState.rocket.setVelocityY(-GAME.THRUST);
+    gameState.rocket.setVelocityY(GAME.THRUST_POWER);
 
     // Thrust visual effect (Particle Boost)
     if (gameState.exhaust) {
