@@ -91,8 +91,6 @@ const COLORS = {
 // ====================================
 let gameState = {
     rocket: null,
-    rocket2: null,
-    gameMode: 'SINGLE',
     obstacles: null,
     flyingObstacles: null,
     starItems: null,
@@ -478,9 +476,8 @@ function create() {
     createUI(this);
 
     // Input handling
-    this.input.on('pointerdown', (pointer) => thrust(pointer));
-    this.input.keyboard.on('keydown-SPACE', (event) => thrust(event));
-    this.input.keyboard.on('keydown-W', (event) => thrust(event)); // P2 Control
+    this.input.on('pointerdown', thrust);
+    this.input.keyboard.on('keydown-SPACE', thrust);
 
     // ...
 
