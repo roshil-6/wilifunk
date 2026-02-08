@@ -657,8 +657,18 @@ function update() {
 
     // Check boundaries
     // Top: crash if fully off screen
-    // Bottom: crash if rocket center passes the stratosphere layer (y = 550)
-    if (gameState.rocket.y < -40 || gameState.rocket.y > 550) {
+    if (gameState.rocket.y < -40) {
+        gameOver();
+    }
+
+    // Bottom: crash if rocket goes below the atmospheric arc
+    // Calculate the arc's Y position at the rocket's X coordinate
+    const dx = gameState.rocket.x - gameState.arcCenterX;
+    const dy = Math.sqrt(gameState.arcRadius * gameState.arcRadius - dx * dx);
+    const arcY = gameState.arcCenterY - dy;
+
+    // Crash if rocket center is below the arc
+    if (gameState.rocket.y > arcY) {
         gameOver();
     }
 
