@@ -622,8 +622,9 @@ function update() {
     }
 
     // Check boundaries
-    // Only crash if rocket is FULLY off screen (more forgiving)
-    if (gameState.rocket.y < -30 || gameState.rocket.y > 630) {
+    // Only crash if rocket is FULLY off screen (very forgiving on bottom)
+    // Screen height is 600, rocket height ~40px, so 680 ensures it's completely gone
+    if (gameState.rocket.y < -40 || gameState.rocket.y > 680) {
         gameOver();
     }
 
