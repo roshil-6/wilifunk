@@ -400,6 +400,51 @@ function createStarItemTexture(scene) {
 // ====================================
 // CREATE - Setup Game Scene
 // ====================================
+
+function createSpaceBackground(scene) {
+    // Gradient background
+    const bg = scene.add.graphics();
+    bg.fillGradientStyle(0x0a0a1a, 0x0a0a1a, 0x1a0a2e, 0x1a0a2e, 1);
+    bg.fillRect(0, 0, scene.scale.width, scene.scale.height);
+    bg.setScrollFactor(0); // Fix to camera
+    bg.setDepth(-100);
+
+    // Star layers (parallax)
+    for (let layer = 0; layer < 3; layer++) {
+        const count = 30 + layer * 20;
+        const speed = 0.2 + layer * 0.3;
+        const size = 1 + layer * 0.5;
+
+        for (let i = 0; i < count; i++) {
+            const star = scene.add.circle(
+                Phaser.Math.Between(0, scene.scale.width + 50),
+                Phaser.Math.Between(0, scene.scale.height),
+                Phaser.Math.FloatBetween(size * 0.5, size),
+                COLORS.STAR,
+                Phaser.Math.FloatBetween(0.3, 0.8)
+            );
+            star.setDepth(-50 + layer);
+            star.scrollSpeed = speed;
+            gameState.stars.push(star);
+
+            // Twinkle animation
+            scene.tweens.add({
+                targets: star,
+                alpha: 0.2,
+                duration: Phaser.Math.Between(1000, 3000),
+                yoyo: true,
+                repeat: -1,
+                delay: Phaser.Math.Between(0, 2000)
+            });
+        }
+    }
+
+    // Distant nebula
+    const nebula = scene.add.ellipse(600, 300, 300, 200, COLORS.NEBULA, 0.1);
+    nebula.setDepth(-80);
+    gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
+}
+
 function create() {
     // Create space background
     createSpaceBackground(this);
@@ -418,6 +463,22 @@ function create() {
 
     // Create rocket
     createRocket(this);
+
+    // RESTORE COLLISION DETECTION
+    this.physics.add.overlap(gameState.rocket, gameState.obstacles, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.flyingObstacles, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.ufos, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.starItems, collectStar, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.blackHoles, (rocket, hole) => {
+        // Instant death on center contact or just heavy pull? 
+        // Let's make it instant death if too close
+        onCollision(rocket, hole);
+    }, null, this);
+
+    // Collision for P2 if Multi
+    if (gameState.gameMode === 'MULTI' && gameState.rocket2) {
+        this.physics.add.overlap(gameState.rocket2, gameState.obstacles, () => handleMultiCrash('P2'), null, this);
+    }
 
     // Create UI
     createUI(this);
@@ -561,7 +622,8 @@ function update() {
     }
 
     // Check boundaries
-    if (gameState.rocket.y < 0 || gameState.rocket.y > 600) {
+    // Only crash if rocket is FULLY off screen (more forgiving)
+    if (gameState.rocket.y < -30 || gameState.rocket.y > 630) {
         gameOver();
     }
 
@@ -647,9 +709,10 @@ function update() {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < 350) { // Reduced range
-            const force = (350 - dist) * 0.08; // Much weaker pull (escapable)
+            const force = (350 - dist) * 0.08; // Weak pull
             const angle = Math.atan2(dy, dx);
-            gameState.rocket.body.velocity.x += Math.cos(angle) * force;
+            // ONLY PULL Y-AXIS to keep camera stable
+            // gameState.rocket.body.velocity.x += Math.cos(angle) * force; 
             gameState.rocket.body.velocity.y += Math.sin(angle) * force;
         }
 
@@ -800,23 +863,33 @@ function spawnObstacle() {
 
 function spawnClassicPlanets() {
     const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
-    const gapHeight = GAME.GAP_SIZE;
+    const gapHeight = GAME.GAP_SIZE + Phaser.Math.Between(0, 50); // Varied gap
     const spawnX = sceneRef.scale.width + 100;
 
-    // Floating Planets (Classic)
-    const topPlanet = gameState.obstacles.create(spawnX, gapY - 100, 'planet');
+    // Floating Planets (Classic) - Irregular Placement
+    // Top Planet
+    const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
+    const topOffset = Phaser.Math.Between(-50, 50); // Stagger X
+    const topPlanet = gameState.obstacles.create(spawnX + topOffset, gapY - 100, 'planet');
     topPlanet.setOrigin(0.5, 0.5);
-    topPlanet.setScale(0.8);
-    topPlanet.body.setCircle(95);
+    topPlanet.setScale(topScale);
+    topPlanet.body.setCircle(95); // Adjust for scale? Phaser arcade physics body doesn't auto-scale radius perfectly with setScale unless updated.
+    // Better to use setCircle with scale calculation or just let it be close enough. 
+    // Actually, setCircle radius is unscaled. We should ideally scale it.
+    topPlanet.body.setCircle(95 * topScale);
     topPlanet.body.allowGravity = false;
     topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
     topPlanet.body.setImmovable(true);
+    topPlanet.isTop = true;
     topPlanet.scored = false;
 
-    const bottomPlanet = gameState.obstacles.create(spawnX, gapY + gapHeight + 100, 'planet');
+    // Bottom Planet
+    const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
+    const botOffset = Phaser.Math.Between(-50, 50); // Stagger X
+    const bottomPlanet = gameState.obstacles.create(spawnX + botOffset, gapY + gapHeight + 100, 'planet');
     bottomPlanet.setOrigin(0.5, 0.5);
-    bottomPlanet.setScale(0.8);
-    bottomPlanet.body.setCircle(95);
+    bottomPlanet.setScale(botScale);
+    bottomPlanet.body.setCircle(95 * botScale);
     bottomPlanet.body.allowGravity = false;
     bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
     bottomPlanet.body.setImmovable(true);
@@ -825,27 +898,32 @@ function spawnClassicPlanets() {
 
 function spawnGiantCanyon() {
     const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
-    const gapHeight = GAME.GAP_SIZE;
-    const spawnX = sceneRef.scale.width + 300; // Spawn further out
+    const gapHeight = GAME.GAP_SIZE + 100; // Even wider base gap
+    const spawnX = sceneRef.scale.width + 300;
 
-    // Pick texture
     const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
 
-    // Giant bodies acting as Ceiling and Floor
-    // Radius ~300 (size 600).
-    // Top Body Center Y = gapY - 280 (Edge at gapY + 20 approx)
-    const topBody = gameState.obstacles.create(spawnX, gapY - 280, texture);
+    // Massive Bodies - Broken Alignment
+    // Top Body
+    const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
+    const topX = spawnX + Phaser.Math.Between(-100, 100); // Significant staggered X
+    const topBody = gameState.obstacles.create(topX, gapY - 350, texture);
     topBody.setOrigin(0.5, 0.5);
-    topBody.body.setCircle(290);
+    topBody.setScale(topScale);
+    topBody.body.setCircle(280 * topScale);
     topBody.body.allowGravity = false;
     topBody.body.setVelocityX(-gameState.obstacleSpeed);
     topBody.body.setImmovable(true);
+    topBody.isTop = true;
     topBody.scored = false;
 
-    // Bottom Body Center Y = gapY + gapHeight + 280
-    const bottomBody = gameState.obstacles.create(spawnX, gapY + gapHeight + 280, texture);
+    // Bottom Body
+    const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
+    const botX = spawnX + Phaser.Math.Between(-100, 100); // Independent staggered X
+    const bottomBody = gameState.obstacles.create(botX, gapY + gapHeight + 350, texture);
     bottomBody.setOrigin(0.5, 0.5);
-    bottomBody.body.setCircle(290);
+    bottomBody.setScale(botScale);
+    bottomBody.body.setCircle(280 * botScale);
     bottomBody.body.allowGravity = false;
     bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
     bottomBody.body.setImmovable(true);
@@ -1285,10 +1363,8 @@ function spawnMeteor() {
 
     meteor.body.setVelocity(
         Math.cos(angle) * speed,
-        Math.sin(angle) * speed
     );
     meteor.setDepth(6);
-}
 }
 
 
