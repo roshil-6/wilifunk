@@ -91,6 +91,8 @@ const COLORS = {
 // ====================================
 let gameState = {
     rocket: null,
+    rocket2: null,
+    gameMode: 'SINGLE',
     obstacles: null,
     flyingObstacles: null,
     starItems: null,
@@ -106,14 +108,6 @@ let gameState = {
     starTimer: null,
     difficultyTimer: null,
     // Powerups
-    collectedStars: 0,
-    hasShield: false,
-    shieldEndTime: 0,
-    collectedStars: 0,
-    hasShield: false,
-    shieldEndTime: 0,
-    isInvincible: false,
-    // Persistence
     collectedStars: 0,
     hasShield: false,
     shieldEndTime: 0,
@@ -1418,19 +1412,36 @@ function startMultiplayer() {
     gameState.score = 0;
     gameState.obstacleSpeed = GAME.OBSTACLE_SPEED;
 
-    // Enable physics for both rockets
-    gameState.rocket.body.allowGravity = true;
-
     // Create Player 2 rocket if it doesn't exist
     if (!gameState.rocket2) {
         createRocket2(sceneRef);
     }
+
+    // Make both rockets visible and enable physics
+    gameState.rocket.setVisible(true);
+    gameState.rocket.body.allowGravity = true;
     gameState.rocket2.setVisible(true);
     gameState.rocket2.body.allowGravity = true;
+
+    // Show exhaust for both
+    if (gameState.exhaust) gameState.exhaust.setVisible(true);
+    if (gameState.exhaust2) gameState.exhaust2.setVisible(true);
 
     // Reset positions
     gameState.rocket.setPosition(150, 450); // Bottom half
     gameState.rocket2.setPosition(150, 150); // Top half
+    gameState.rocket.setVelocity(0, 0);
+    gameState.rocket2.setVelocity(0, 0);
+
+    // Add visual split-screen divider
+    if (!gameState.splitLine) {
+        gameState.splitLine = sceneRef.add.graphics();
+        gameState.splitLine.lineStyle(2, 0xffffff, 0.3);
+        gameState.splitLine.lineBetween(0, 300, 800, 300);
+        gameState.splitLine.setDepth(50);
+        gameState.splitLine.setScrollFactor(0);
+    }
+    gameState.splitLine.setVisible(true);
 
     // Start obstacle spawning
     if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
