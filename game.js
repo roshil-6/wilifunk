@@ -801,10 +801,9 @@ function startGame() {
         loop: true
     });
 
-    // Start UFO spawning (Rare)
-    // Start UFO spawning (Aggressive)
+    // Start UFO spawning (Less frequent)
     gameState.ufoTimer = sceneRef.time.addEvent({
-        delay: 3000, // Frequent
+        delay: 8000, // Every 8 seconds
         callback: spawnUFO,
         loop: true
     });
