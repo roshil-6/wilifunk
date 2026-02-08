@@ -647,8 +647,8 @@ function update() {
 
     // Check boundaries
     // Top: crash if fully off screen
-    // Bottom: crash if rocket center passes the stratosphere layer (y = 580)
-    if (gameState.rocket.y < -40 || gameState.rocket.y > 580) {
+    // Bottom: crash if rocket center passes the stratosphere layer (y = 550)
+    if (gameState.rocket.y < -40 || gameState.rocket.y > 550) {
         gameOver();
     }
 
