@@ -484,9 +484,9 @@ function create() {
     createUI(this);
 
     // Input handling
-    this.input.on('pointerdown', thrust);
-    this.input.keyboard.on('keydown-SPACE', thrust);
-    this.input.keyboard.on('keydown-W', thrust); // P2 Control
+    this.input.on('pointerdown', (pointer) => thrust(pointer));
+    this.input.keyboard.on('keydown-SPACE', (event) => thrust(event));
+    this.input.keyboard.on('keydown-W', (event) => thrust(event)); // P2 Control
 
     // ...
 
@@ -735,28 +735,52 @@ function update() {
 // ====================================
 // GAME ACTIONS
 // ====================================
-function thrust() {
+function thrust(event) {
     if (gameState.isGameOver) return;
 
-    if (!gameState.isPlaying) {
-        startGame();
-        return;
+    // Multiplayer mode - determine which player
+    if (gameState.gameMode === 'MULTI') {
+        // Keyboard controls
+        if (event && event.key) {
+            if (event.key === ' ') {
+                // P1 - Spacebar
+                gameState.rocket.setVelocityY(-GAME.THRUST);
+                if (gameState.exhaust) gameState.exhaust.emitParticle(5);
+            } else if (event.key === 'w' || event.key === 'W') {
+                // P2 - W key (inverted)
+                gameState.rocket2.setVelocityY(GAME.THRUST); // Positive for inverted gravity
+                if (gameState.exhaust2) gameState.exhaust2.emitParticle(5);
+            }
+        }
+        // Touch/mouse controls - split screen
+        else if (event && event.y) {
+            if (event.y > 300) {
+                // Bottom half - P1
+                gameState.rocket.setVelocityY(-GAME.THRUST);
+                if (gameState.exhaust) gameState.exhaust.emitParticle(5);
+            } else {
+                // Top half - P2
+                gameState.rocket2.setVelocityY(GAME.THRUST);
+                if (gameState.exhaust2) gameState.exhaust2.emitParticle(5);
+            }
+        }
     }
+    // Single player mode
+    else {
+        if (!gameState.isPlaying) {
+            startGame();
+            return;
+        }
+        gameState.rocket.setVelocityY(-GAME.THRUST);
 
-    // Apply upward thrust
-    gameState.rocket.setVelocityY(GAME.THRUST_POWER);
+        // Thrust visual effect (Particle Boost)
+        if (gameState.exhaust) {
+            gameState.exhaust.emitParticle(5);
+        }
 
-    // Thrust visual effect
-    // Thrust visual effect (Particle Boost)
-    // Thrust visual effect (Particle Boost)
-    if (gameState.exhaust) {
-        // Safe boost for Phaser 3.60
-        // We can emit a few extra particles
-        gameState.exhaust.emitParticle(5);
+        // Small particle burst
+        createThrustParticles();
     }
-
-    // Small particle burst
-    createThrustParticles();
 }
 
 function createThrustParticles() {
@@ -1368,6 +1392,108 @@ function spawnMeteor() {
         Math.cos(angle) * speed,
     );
     meteor.setDepth(6);
+}
+
+// ====================================
+// MULTIPLAYER FUNCTIONS
+// ====================================
+
+function openMultiplayer() {
+    document.getElementById('multiplayerMenu').classList.remove('hidden');
+}
+
+function closeMultiplayer() {
+    document.getElementById('multiplayerMenu').classList.add('hidden');
+}
+
+function startMultiplayer() {
+    // Hide menus
+    document.getElementById('homeMenu').style.display = 'none';
+    document.getElementById('gameUI').style.display = 'block';
+
+    // Set multiplayer mode
+    gameState.gameMode = 'MULTI';
+    gameState.isPlaying = true;
+    gameState.isGameOver = false;
+    gameState.score = 0;
+    gameState.obstacleSpeed = GAME.OBSTACLE_SPEED;
+
+    // Enable physics for both rockets
+    gameState.rocket.body.allowGravity = true;
+
+    // Create Player 2 rocket if it doesn't exist
+    if (!gameState.rocket2) {
+        createRocket2(sceneRef);
+    }
+    gameState.rocket2.setVisible(true);
+    gameState.rocket2.body.allowGravity = true;
+
+    // Reset positions
+    gameState.rocket.setPosition(150, 450); // Bottom half
+    gameState.rocket2.setPosition(150, 150); // Top half
+
+    // Start obstacle spawning
+    if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
+    gameState.obstacleTimer = sceneRef.time.addEvent({
+        delay: gameState.spawnRate,
+        callback: spawnObstacle,
+        loop: true
+    });
+
+    updateScore();
+}
+
+function createRocket2(scene) {
+    // Player 2 rocket (top half, inverted gravity)
+    gameState.rocket2 = scene.physics.add.sprite(150, 150, 'rocket');
+    gameState.rocket2.setDepth(10);
+    gameState.rocket2.body.setSize(35, 30);
+    gameState.rocket2.body.setOffset(5, 7);
+    gameState.rocket2.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
+    gameState.rocket2.setVisible(false);
+
+    // Inverted gravity for P2
+    gameState.rocket2.body.setGravityY(-GAME.GRAVITY);
+
+    // P2 exhaust
+    gameState.exhaust2 = scene.add.particles(0, 0, 'flare', {
+        speed: { min: 100, max: 200 },
+        angle: { min: -10, max: 10 }, // Shoot upwards for P2
+        scale: { start: 1, end: 0 },
+        alpha: { start: 1, end: 0 },
+        tint: [0xff3366, 0xff0066, 0xcc0055],
+        lifespan: 300,
+        blendMode: 'ADD',
+        frequency: 10,
+        quantity: 2,
+        follow: gameState.rocket2,
+        followOffset: { x: -25, y: -7 }
+    });
+    gameState.exhaust2.setDepth(9);
+    gameState.exhaust2.setVisible(false);
+
+    // Collision for P2
+    scene.physics.add.overlap(gameState.rocket2, gameState.obstacles, () => handleMultiCrash('P2'), null, scene);
+    scene.physics.add.overlap(gameState.rocket2, gameState.flyingObstacles, () => handleMultiCrash('P2'), null, scene);
+}
+
+function handleMultiCrash(player) {
+    if (gameState.isGameOver) return;
+
+    gameState.isGameOver = true;
+    gameState.isPlaying = false;
+
+    // Determine winner
+    const winner = player === 'P1' ? 'P2' : 'P1';
+
+    // Update wins
+    const wins = localStorage.getItem(`${winner}Wins`) || 0;
+    const newWins = parseInt(wins) + 1;
+    localStorage.setItem(`${winner}Wins`, newWins);
+
+    // Show game over
+    document.getElementById('finalScore').textContent = `${winner} WINS!`;
+    document.getElementById('gameOverOverlay').style.display = 'flex';
 }
 
 

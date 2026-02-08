@@ -40,6 +40,36 @@
                     <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
                     <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
+
+                    <div class="action-buttons"
+                        style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                        <button id="startGameBtn" class="start-button">🚀 LAUNCH</button>
+                        <button id="multiBtn" onclick="openMultiplayer()" class="start-button"
+                            style="background: linear-gradient(180deg, #9b59b6 0%, #8e44ad 100%);">⚔️ VS MODE</button>
+                    </div>
+                </div>
+
+                <!-- Multiplayer Menu (Hidden) -->
+                <div id="multiplayerMenu" class="hidden"
+                    style="margin-top: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; border: 1px solid #8e44ad;">
+                    <h2 style="color: #fff; margin-bottom: 20px;">MULTIPLAYER BATTLE</h2>
+                    <div class="vs-stats"
+                        style="display: flex; justify-content: center; gap: 30px; color: #fff; margin-bottom: 20px;">
+                        <div>
+                            <h3 style="color: #00d4ff;">P1</h3>
+                            <div id="p1Wins" style="font-size: 30px; font-weight: bold;">0</div>
+                        </div>
+                        <div style="font-size: 24px; color: #ff3366; font-weight: bold; padding-top: 10px;">VS</div>
+                        <div>
+                            <h3 style="color: #ff3366;">P2</h3>
+                            <div id="p2Wins" style="font-size: 30px; font-weight: bold;">0</div>
+                        </div>
+                    </div>
+                    <p style="color: #aaa; font-size: 14px; margin-bottom: 20px;">P1: Bottom (Tap) | P2: Top (Tap)</p>
+                    <button onclick="startMultiplayer()" class="start-button"
+                        style="background: #e74c3c;">FIGHT!</button>
+                    <button onclick="closeMultiplayer()"
+                        style="background: none; border: none; color: #ccc; text-decoration: underline; margin-top: 10px; cursor: pointer;">Cancel</button>
                 </div>
 
                 <!-- Rules Section -->
