@@ -1,0 +1,12 @@
+{
+  "name": "wilifunk-3d",
+  "version": "1.0.0",
+  "description": "3D Parkour Runner Game",
+  "type": "module",
+  "scripts": {
+    "dev": "npx http-server . -p 8000 -c-1"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  }
+}

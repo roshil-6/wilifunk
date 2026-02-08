@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WILIFUNK - Module Load Test</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #00ffff;
+            font-family: monospace;
+            padding: 20px;
+        }
+        #status {
+            font-size: 18px;
+            line-height: 1.8;
+        }
+        .error { color: #ff0040; }
+        .success { color: #40ff00; }
+    </style>
+</head>
+<body>
+    <h1>WILIFUNK - Module Load Test</h1>
+    <div id="status">Testing module loading...</div>
+    
+    <script type="module">
+        const status = document.getElementById('status');
+        const tests = [];
+        
+        function addTest(name, passed, error = null) {
+            tests.push({ name, passed, error });
+            const color = passed ? 'success' : 'error';
+            const icon = passed ? '✓' : '✗';
+            status.innerHTML += `<div class="${color}">${icon} ${name}${error ? ': ' + error : ''}</div>`;
+        }
+        
+        async function runTests() {
+            try {
+                // Test 1: Check if modules can be imported
+                addTest('Module system available', true);
+                
+                // Test 2: Import Building
+                try {
+                    const { Building } = await import('./game/Building.js');
+                    addTest('Building.js loaded', true);
+                } catch (e) {
+                    addTest('Building.js loaded', false, e.message);
+                }
+                
+                // Test 3: Import ComboSystem
+                try {
+                    const { ComboSystem } = await import('./game/ComboSystem.js');
+                    addTest('ComboSystem.js loaded', true);
+                } catch (e) {
+                    addTest('ComboSystem.js loaded', false, e.message);
+                }
+                
+                // Test 4: Import Player
+                try {
+                    const { Player } = await import('./game/Player.js');
+                    addTest('Player.js loaded', true);
+                } catch (e) {
+                    addTest('Player.js loaded', false, e.message);
+                }
+                
+                // Test 5: Import Game
+                try {
+                    const { Game } = await import('./game/Game.js');
+                    addTest('Game.js loaded', true);
+                    
+                    // Test 6: Create Game instance
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.id = 'testCanvas';
+                        const game = new Game(canvas);
+                        addTest('Game instance created', true);
+                    } catch (e) {
+                        addTest('Game instance created', false, e.message);
+                    }
+                } catch (e) {
+                    addTest('Game.js loaded', false, e.message);
+                }
+                
+                // Summary
+                const passed = tests.filter(t => t.passed).length;
+                const total = tests.length;
+                status.innerHTML += `<div style="margin-top: 20px; font-size: 20px; font-weight: bold;">Results: ${passed}/${total} tests passed</div>`;
+                
+            } catch (error) {
+                status.innerHTML += `<div class="error">CRITICAL ERROR: ${error.message}</div>`;
+                status.innerHTML += `<pre style="background: #1a1a1a; padding: 10px; overflow: auto;">${error.stack}</pre>`;
+            }
+        }
+        
+        runTests();
+    </script>
+</body>
+</html>

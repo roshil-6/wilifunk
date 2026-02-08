@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WILIFUNK SPACE ROCKET</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <!-- Game Canvas -->
+        <div id="phaser-game"></div>
+
+        <!-- In-Game UI -->
+        <div id="gameUI" class="hidden">
+            <button id="pauseBtn" class="game-btn pause-btn" title="Menu">☰</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverOverlay" class="overlay hidden">
+            <div class="overlay-content">
+                <div class="overlay-title game-over-title">CRASHED!</div>
+                <div class="overlay-message" id="gameOverMessage">Your rocket couldn't make it...</div>
+                <div class="overlay-stats" id="gameOverStats"></div>
+                <div class="overlay-buttons">
+                    <button id="restartBtn" class="menu-button primary">LAUNCH AGAIN</button>
+                    <button id="homeBtn" class="menu-button secondary">MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Home Menu -->
+        <div id="homeMenu" class="home-menu">
+            <div class="home-content">
+                <!-- Title Section -->
+                <div class="title-section">
+                    <div class="rocket-icon">🚀</div>
+                    <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
+                    <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
+                    <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
+                </div>
+
+                <!-- Rules Section -->
+                <div class="rules-section">
+                    <h2 class="rules-title">CONTROLS</h2>
+                    <div class="rules-simple">
+                        <div class="rule-big">
+                            <span class="key-icon">TAP</span>
+                            <span class="or-text">or</span>
+                            <span class="key-icon">SPACE</span>
+                        </div>
+                        <p class="rule-desc">to thrust upward</p>
+                    </div>
+                    <div class="rules-tips">
+                        <p>⚠️ Avoid the barriers</p>
+                        <p>⭐ Collect 3 Stars = 🛡️ Shield (5s)</p>
+                        <p>🕳️ Black Holes = ESCAPE or DIE</p>
+                        <p>🏆 Beat your high score</p>
+                    </div>
+                </div>
+
+                <!-- Trophy Case -->
+                <div class="trophy-section">
+                    <h2 class="rules-title">TROPHY CASE</h2>
+                    <div id="badgeContainer" class="badge-grid">
+                        <p class="no-badges">No badges yet...</p>
+                    </div>
+                </div>
+
+                <!-- Start Button -->
+                <button id="startGameBtn" class="start-button">
+                    🚀 LAUNCH
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="game.js"></script>
+    <script>
+        // Menu Navigation
+        const homeMenu = document.getElementById('homeMenu');
+        const gameUI = document.getElementById('gameUI');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+
+        // Start Game
+        document.getElementById('startGameBtn').addEventListener('click', () => {
+            homeMenu.classList.add('hidden');
+            gameUI.classList.remove('hidden');
+        });
+
+        // Pause/Menu button
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            showHomeMenu();
+        });
+
+        // Restart button
+        document.getElementById('restartBtn')?.addEventListener('click', () => {
+            gameOverOverlay.classList.add('hidden');
+            if (typeof restartGame === 'function' && sceneRef) {
+                restartGame(sceneRef);
+            }
+            // Auto-start after restart
+            setTimeout(() => {
+                if (typeof startGame === 'function') {
+                    // Click to start
+                }
+            }, 100);
+        });
+
+        // Home button
+        document.getElementById('homeBtn')?.addEventListener('click', showHomeMenu);
+
+        function showHomeMenu() {
+            homeMenu.classList.remove('hidden');
+            gameUI.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+
+            // Refresh tagline based on new score
+            if (typeof updateTagline === 'function') {
+                updateTagline();
+            }
+
+            if (typeof restartGame === 'function' && sceneRef) {
+                restartGame(sceneRef);
+            }
+        }
+
+        // Expose function for game.js
+        window.showGameOver = function (score, highScore) {
+            gameOverOverlay.classList.remove('hidden');
+            const isNewRecord = score >= highScore && score > 0;
+            document.getElementById('gameOverMessage').textContent =
+                isNewRecord ? '🎉 NEW HIGH SCORE!' : 'Your rocket crashed...';
+            document.getElementById('gameOverStats').innerHTML =
+                `Score: <strong>${score}</strong> | Best: <strong>${highScore}</strong>`;
+        };
+        // Dynamic Tagline based on High Score
+        function updateTagline() {
+            const score = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
+            const tagElement = document.getElementById('taglineText');
+
+            let text = "";
+
+            if (score < 20) {
+                text = "Your high score is a joke in 3 galaxies.";
+            } else if (score < 50) {
+                text = "Double digits? Someone's trying hard.";
+            } else if (score < 100) {
+                text = "Not terrible. But my cat could do better.";
+            } else if (score < 200) {
+                text = "Finally, a pilot who knows up from down.";
+            } else if (score < 500) {
+                text = "Okay, you're actually dangerous now.";
+            } else {
+                text = "The Universe touches its hat to you.";
+            }
+
+            tagElement.textContent = text;
+            tagElement.style.opacity = 1;
+        }
+
+        // Run on load
+        updateTagline();
+
+        // Listen for updates from game
+        window.updateBadgesUI = function () {
+            // Re-run tagline update in case score changed
+            updateTagline();
+            // Also update badges if needed (existing logic might need merge if strict about function replacement)
+        };
+    </script>
+</body>
+
+</html>

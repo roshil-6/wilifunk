@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WILIFUNK Test</title>
+    <style>
+        body { background: #0a0a0a; color: #00ffff; font-family: monospace; padding: 20px; }
+        canvas { border: 1px solid #00ffff; }
+    </style>
+</head>
+<body>
+    <h1>WILIFUNK Test</h1>
+    <canvas id="testCanvas" width="800" height="600"></canvas>
+    <div id="status">Loading...</div>
+    
+    <script type="module">
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        
+        try {
+            // Test 1: Canvas works
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(100, 100, 50, 50);
+            status.textContent += ' ✓ Canvas working';
+            
+            // Test 2: Module import
+            import { Game } from './game/Game.js';
+            status.textContent += ' ✓ Module import working';
+            
+            // Test 3: Initialize game
+            const game = new Game(canvas);
+            game.init();
+            status.textContent += ' ✓ Game initialized';
+            status.style.color = '#40ff00';
+            
+        } catch (error) {
+            status.textContent = 'ERROR: ' + error.message;
+            status.style.color = '#ff0040';
+            console.error('Full error:', error);
+        }
+    </script>
+</body>
+</html>
