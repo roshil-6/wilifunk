@@ -260,6 +260,45 @@ function createMountainTexture(scene) {
     gfx.destroy();
 }
 
+function createGiantMarsTexture(scene) {
+    const gfx = scene.add.graphics();
+    const size = 600;
+
+    // Base Mars Sphere (Huge)
+    gfx.fillStyle(0xc0392b, 1);
+    gfx.fillCircle(size / 2, size / 2, size / 2);
+
+    // Surface details (Craters/Canyons)
+    gfx.fillStyle(0xa93226, 1); // Darker red
+    gfx.fillCircle(size * 0.3, size * 0.3, size * 0.1);
+    gfx.fillCircle(size * 0.7, size * 0.6, size * 0.15);
+
+    // "Polar Ice" or lighter patch
+    gfx.fillStyle(0xe67e22, 0.8);
+    gfx.fillCircle(size * 0.5, size * 0.1, size * 0.1);
+
+    gfx.generateTexture('giant_mars', size, size);
+    gfx.destroy();
+}
+
+function createGiantMoonTexture(scene) {
+    const gfx = scene.add.graphics();
+    const size = 600;
+
+    // Base Moon Sphere
+    gfx.fillStyle(0x95a5a6, 1);
+    gfx.fillCircle(size / 2, size / 2, size / 2);
+
+    // Craters
+    gfx.fillStyle(0x7f8c8d, 1);
+    gfx.fillCircle(size * 0.2, size * 0.4, size * 0.08);
+    gfx.fillCircle(size * 0.8, size * 0.2, size * 0.12);
+    gfx.fillCircle(size * 0.5, size * 0.8, size * 0.1);
+
+    gfx.generateTexture('giant_moon', size, size);
+    gfx.destroy();
+}
+
 function createPlanetTexture(scene) {
     const gfx = scene.add.graphics();
 
@@ -365,6 +404,11 @@ function create() {
     // Create space background
     createSpaceBackground(this);
 
+    // Create Biome Textures
+    // Create Biome Textures
+    createGiantMarsTexture(this);
+    createGiantMoonTexture(this);
+
     // Create obstacle group
     gameState.obstacles = this.physics.add.group();
     gameState.flyingObstacles = this.physics.add.group();
@@ -381,173 +425,105 @@ function create() {
     // Input handling
     this.input.on('pointerdown', thrust);
     this.input.keyboard.on('keydown-SPACE', thrust);
+    this.input.keyboard.on('keydown-W', thrust); // P2 Control
 
-    // Collision detection
-    this.physics.add.overlap(
-        gameState.rocket,
-        gameState.obstacles,
-        onCollision,
-        null,
-        this
-    );
-    this.physics.add.overlap(
-        gameState.rocket,
-        gameState.flyingObstacles,
-        onCollision,
-        null,
-        this
-    );
-    this.physics.add.overlap(
-        gameState.rocket,
-        gameState.starItems,
-        collectStar,
-        null,
-        this
-    );
-    // Black Hole collision handled in update() for soft edges
+    // ...
 
-    // Start paused (wait for menu)
-    gameState.isPlaying = false;
-    gameState.rocket.body.allowGravity = false;
-}
+    function createRocket(scene, y = 300) {
+        // Rocket sprite
+        gameState.rocket = scene.physics.add.sprite(150, y, 'rocket');
+        gameState.rocket.setDepth(10);
+        gameState.rocket.body.setSize(35, 30);
 
-function createSpaceBackground(scene) {
-    // Gradient background
-    const bg = scene.add.graphics();
-    bg.fillGradientStyle(0x0a0a1a, 0x0a0a1a, 0x1a0a2e, 0x1a0a2e, 1);
-    bg.fillRect(0, 0, scene.scale.width, scene.scale.height);
-    bg.setScrollFactor(0); // Fix to camera
-    bg.setDepth(-100);
+        gameState.rocket.body.setOffset(5, 7);
+        gameState.rocket.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
 
-    // Star layers (parallax)
-    for (let layer = 0; layer < 3; layer++) {
-        const count = 30 + layer * 20;
-        const speed = 0.2 + layer * 0.3;
-        const size = 1 + layer * 0.5;
+        // -- REALISTIC ENGINE EXHAUST (Particles) --
+        // We create an emitter manager directly
+        // Note: In Phaser 3.60, syntax is slightly different but this is standard
+        gameState.exhaust = scene.add.particles(0, 0, 'flare', {
+            speed: { min: 100, max: 200 },
+            angle: { min: 170, max: 190 }, // Shoot backwards
+            scale: { start: 1, end: 0 },
+            alpha: { start: 1, end: 0 },
+            tint: [0x00d2ff, 0x0077ff, 0x0000ff], // Cyan -> Blue -> Dark Blue
+            lifespan: 300,
+            blendMode: 'ADD',
+            frequency: 10,
+            quantity: 2,
+            follow: gameState.rocket,
+            followOffset: { x: -25, y: 7 } // Position at rear of rocket
+        });
 
-        for (let i = 0; i < count; i++) {
-            const star = scene.add.circle(
-                Phaser.Math.Between(0, scene.scale.width + 50),
-                Phaser.Math.Between(0, scene.scale.height),
-                Phaser.Math.FloatBetween(size * 0.5, size),
-                COLORS.STAR,
-                Phaser.Math.FloatBetween(0.3, 0.8)
-            );
-            star.setDepth(-50 + layer);
-            star.scrollSpeed = speed;
-            gameState.stars.push(star);
+        // Twin engine offset (Second Emitter if desired, or just wider spread)
+        // We'll stick to one robust emitter for performance/clarity, centered between the twin engines.
 
-            // Twinkle animation
-            scene.tweens.add({
-                targets: star,
-                alpha: 0.2,
-                duration: Phaser.Math.Between(1000, 3000),
-                yoyo: true,
-                repeat: -1,
-                delay: Phaser.Math.Between(0, 2000)
-            });
-        }
+        gameState.exhaust.setDepth(9);
+
+        // Shield Effect (Hidden by default)
+        shieldEffect = scene.add.ellipse(0, 0, 60, 60, 0x00ffff, 0.3);
+        shieldEffect.setStrokeStyle(2, 0x00ffff, 0.8);
+        shieldEffect.setVisible(false);
+        shieldEffect.setDepth(11);
     }
 
-    // Distant nebula
-    const nebula = scene.add.ellipse(600, 300, 300, 200, COLORS.NEBULA, 0.1);
-    nebula.setDepth(-80);
-    gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
-}
+    function createUI(scene) {
+        // Score
+        scoreText = scene.add.text(20, 20, 'SCORE: 0', {
+            fontSize: '28px',
+            fontFamily: 'Courier New',
+            fontWeight: 'bold',
+            color: '#00ffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        });
+        scoreText.setDepth(100);
+        scoreText.setScrollFactor(0);
 
-function createRocket(scene) {
-    // Rocket sprite
-    gameState.rocket = scene.physics.add.sprite(150, 300, 'rocket');
-    gameState.rocket.setDepth(10);
-    gameState.rocket.body.setSize(35, 30);
-    gameState.rocket.body.setOffset(5, 7);
-    gameState.rocket.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
+        // High score
+        highScoreText = scene.add.text(20, 55, 'BEST: ' + gameState.highScore, {
+            fontSize: '16px',
+            fontFamily: 'Courier New',
+            color: '#888888'
+        });
+        highScoreText.setDepth(100);
+        highScoreText.setScrollFactor(0);
 
-    // -- REALISTIC ENGINE EXHAUST (Particles) --
-    // We create an emitter manager directly
-    // Note: In Phaser 3.60, syntax is slightly different but this is standard
-    gameState.exhaust = scene.add.particles(0, 0, 'flare', {
-        speed: { min: 100, max: 200 },
-        angle: { min: 170, max: 190 }, // Shoot backwards
-        scale: { start: 1, end: 0 },
-        alpha: { start: 1, end: 0 },
-        tint: [0x00d2ff, 0x0077ff, 0x0000ff], // Cyan -> Blue -> Dark Blue
-        lifespan: 300,
-        blendMode: 'ADD',
-        frequency: 10,
-        quantity: 2,
-        follow: gameState.rocket,
-        followOffset: { x: -25, y: 7 } // Position at rear of rocket
-    });
+        // Star Count
+        starText = scene.add.text(20, 80, 'STARS: 0/3', {
+            fontSize: '18px',
+            fontFamily: 'Courier New',
+            color: '#ffd700',
+            fontWeight: 'bold'
+        });
+        starText.setDepth(100);
 
-    // Twin engine offset (Second Emitter if desired, or just wider spread)
-    // We'll stick to one robust emitter for performance/clarity, centered between the twin engines.
+        // Badge Notification (Centered, hidden)
+        badgeText = scene.add.text(400, 150, '', {
+            fontSize: '32px',
+            fontFamily: 'Impact',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center'
+        });
+        badgeText.setOrigin(0.5);
+        badgeText.setDepth(200);
+        badgeText.setAlpha(0);
 
-    gameState.exhaust.setDepth(9);
-
-    // Shield Effect (Hidden by default)
-    shieldEffect = scene.add.ellipse(0, 0, 60, 60, 0x00ffff, 0.3);
-    shieldEffect.setStrokeStyle(2, 0x00ffff, 0.8);
-    shieldEffect.setVisible(false);
-    shieldEffect.setDepth(11);
-}
-
-function createUI(scene) {
-    // Score
-    scoreText = scene.add.text(20, 20, 'SCORE: 0', {
-        fontSize: '28px',
-        fontFamily: 'Courier New',
-        fontWeight: 'bold',
-        color: '#00ffff',
-        stroke: '#000000',
-        strokeThickness: 3
-    });
-    scoreText.setDepth(100);
-    scoreText.setScrollFactor(0);
-
-    // High score
-    highScoreText = scene.add.text(20, 55, 'BEST: ' + gameState.highScore, {
-        fontSize: '16px',
-        fontFamily: 'Courier New',
-        color: '#888888'
-    });
-    highScoreText.setDepth(100);
-    highScoreText.setScrollFactor(0);
-
-    // Star Count
-    starText = scene.add.text(20, 80, 'STARS: 0/3', {
-        fontSize: '18px',
-        fontFamily: 'Courier New',
-        color: '#ffd700',
-        fontWeight: 'bold'
-    });
-    starText.setDepth(100);
-
-    // Badge Notification (Centered, hidden)
-    badgeText = scene.add.text(400, 150, '', {
-        fontSize: '32px',
-        fontFamily: 'Impact',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 4,
-        align: 'center'
-    });
-    badgeText.setOrigin(0.5);
-    badgeText.setDepth(200);
-    badgeText.setAlpha(0);
-
-    // Meteor Warning
-    meteorText = scene.add.text(400, 300, 'METEOR SHOWER DETECTED!', {
-        fontSize: '40px',
-        fontFamily: 'Impact',
-        color: '#ff0000',
-        stroke: '#ffffff',
-        strokeThickness: 5,
-        align: 'center'
-    });
-    meteorText.setOrigin(0.5);
-    meteorText.setDepth(200);
-    meteorText.setVisible(false);
+        // Meteor Warning
+        meteorText = scene.add.text(400, 300, 'METEOR SHOWER DETECTED!', {
+            fontSize: '40px',
+            fontFamily: 'Impact',
+            color: '#ff0000',
+            stroke: '#ffffff',
+            strokeThickness: 5,
+            align: 'center'
+        });
+        meteorText.setOrigin(0.5);
+        meteorText.setDepth(200);
+        meteorText.setVisible(false);
+    }
 }
 
 // ====================================
@@ -809,54 +785,71 @@ function startGame() {
     document.getElementById('gameUI')?.classList.remove('hidden');
 }
 
+
+
 function spawnObstacle() {
     if (gameState.isGameOver) return;
 
+    // 50/50 Chance between Classic Planets and Giant Canyon
+    if (Phaser.Math.Between(0, 100) > 50) {
+        spawnGiantCanyon();
+    } else {
+        spawnClassicPlanets();
+    }
+}
+
+function spawnClassicPlanets() {
     const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
     const gapHeight = GAME.GAP_SIZE;
-    const type = Phaser.Math.RND.pick(['mountain', 'planet']);
-
     const spawnX = sceneRef.scale.width + 100;
 
-    if (type === 'planet') {
-        // Spawn Planets
-        const topPlanet = gameState.obstacles.create(spawnX, gapY - 180, 'planet');
-        topPlanet.setOrigin(0.5, 0.5);
-        topPlanet.body.setCircle(90); // Circular hitbox
-        topPlanet.body.allowGravity = false;
-        topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-        topPlanet.body.setImmovable(true);
-        topPlanet.scored = false;
+    // Floating Planets (Classic)
+    const topPlanet = gameState.obstacles.create(spawnX, gapY - 100, 'planet');
+    topPlanet.setOrigin(0.5, 0.5);
+    topPlanet.setScale(0.8);
+    topPlanet.body.setCircle(95);
+    topPlanet.body.allowGravity = false;
+    topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+    topPlanet.body.setImmovable(true);
+    topPlanet.scored = false;
 
-        const bottomPlanet = gameState.obstacles.create(spawnX, gapY + gapHeight + 180, 'planet');
-        bottomPlanet.setOrigin(0.5, 0.5);
-        bottomPlanet.body.setCircle(90);
-        bottomPlanet.body.allowGravity = false;
-        bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-        bottomPlanet.body.setImmovable(true);
-        bottomPlanet.scored = false;
+    const bottomPlanet = gameState.obstacles.create(spawnX, gapY + gapHeight + 100, 'planet');
+    bottomPlanet.setOrigin(0.5, 0.5);
+    bottomPlanet.setScale(0.8);
+    bottomPlanet.body.setCircle(95);
+    bottomPlanet.body.allowGravity = false;
+    bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+    bottomPlanet.body.setImmovable(true);
+    bottomPlanet.scored = false;
+}
 
-    } else {
-        // Spawn Mountains (Use 'mountain' texture)
-        // Top Mountain (Flipped)
-        const topObstacle = gameState.obstacles.create(spawnX, gapY - 200, 'mountain');
-        topObstacle.setOrigin(0.5, 1);
-        topObstacle.flipY = true; // Flip for top stalactite look
-        topObstacle.body.allowGravity = false;
-        topObstacle.body.setVelocityX(-gameState.obstacleSpeed);
-        topObstacle.body.setImmovable(true);
-        topObstacle.isTop = true;
-        topObstacle.scored = false;
+function spawnGiantCanyon() {
+    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
+    const gapHeight = GAME.GAP_SIZE;
+    const spawnX = sceneRef.scale.width + 300; // Spawn further out
 
-        // Bottom Mountain
-        const bottomObstacle = gameState.obstacles.create(spawnX, gapY + gapHeight, 'mountain');
-        bottomObstacle.setOrigin(0.5, 0);
-        bottomObstacle.body.allowGravity = false;
-        bottomObstacle.body.setVelocityX(-gameState.obstacleSpeed);
-        bottomObstacle.body.setImmovable(true);
-        bottomObstacle.isTop = false;
-        bottomObstacle.scored = false;
-    }
+    // Pick texture
+    const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
+
+    // Giant bodies acting as Ceiling and Floor
+    // Radius ~300 (size 600).
+    // Top Body Center Y = gapY - 280 (Edge at gapY + 20 approx)
+    const topBody = gameState.obstacles.create(spawnX, gapY - 280, texture);
+    topBody.setOrigin(0.5, 0.5);
+    topBody.body.setCircle(290);
+    topBody.body.allowGravity = false;
+    topBody.body.setVelocityX(-gameState.obstacleSpeed);
+    topBody.body.setImmovable(true);
+    topBody.scored = false;
+
+    // Bottom Body Center Y = gapY + gapHeight + 280
+    const bottomBody = gameState.obstacles.create(spawnX, gapY + gapHeight + 280, texture);
+    bottomBody.setOrigin(0.5, 0.5);
+    bottomBody.body.setCircle(290);
+    bottomBody.body.allowGravity = false;
+    bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
+    bottomBody.body.setImmovable(true);
+    bottomBody.scored = false;
 }
 
 function spawnFlyingAsteroid() {
@@ -1296,6 +1289,8 @@ function spawnMeteor() {
     );
     meteor.setDepth(6);
 }
+}
+
 
 // ====================================
 // INITIALIZE GAME
