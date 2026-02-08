@@ -623,8 +623,8 @@ function update() {
 
     // Check boundaries
     // Top: crash if fully off screen
-    // Bottom: crash with extra tolerance (50px below screen edge)
-    if (gameState.rocket.y < -40 || gameState.rocket.y >= 650) {
+    // Bottom: crash with extra tolerance (130px below screen edge)
+    if (gameState.rocket.y < -40 || gameState.rocket.y >= 730) {
         gameOver();
     }
 
