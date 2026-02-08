@@ -448,13 +448,17 @@ function createSpaceBackground(scene) {
     const layer = scene.add.graphics();
     layer.fillStyle(0xaaaaaa, 0.35); // Light grey
 
-    // Draw a circular arc from bottom-left to bottom-right
-    const centerX = scene.scale.width / 2;
-    const centerY = scene.scale.height + 200; // Center below screen
-    const radius = 350; // Large radius for gentle curve
+    // Arc parameters - curve from bottom-left (0,600) to bottom-right (800,600)
+    const centerX = scene.scale.width / 2; // 400
+    const centerY = scene.scale.height + 100; // 700 (below screen)
+    const radius = Math.sqrt(Math.pow(centerX, 2) + Math.pow(100, 2)); // ~412
+
+    // Calculate angles to touch the bottom corners
+    const startAngle = Math.PI - Math.atan2(100, centerX); // ~2.9 rad
+    const endAngle = Math.atan2(100, centerX); // ~0.24 rad
 
     layer.beginPath();
-    layer.arc(centerX, centerY, radius, Math.PI * 1.2, Math.PI * 1.8, false);
+    layer.arc(centerX, centerY, radius, startAngle, endAngle, true);
     layer.lineTo(scene.scale.width, scene.scale.height);
     layer.lineTo(0, scene.scale.height);
     layer.closePath();
@@ -465,8 +469,13 @@ function createSpaceBackground(scene) {
     // Subtle glow on the arc edge
     layer.lineStyle(2, 0xcccccc, 0.3);
     layer.beginPath();
-    layer.arc(centerX, centerY, radius, Math.PI * 1.2, Math.PI * 1.8, false);
+    layer.arc(centerX, centerY, radius, startAngle, endAngle, true);
     layer.strokePath();
+
+    // Store arc parameters for collision detection
+    gameState.arcCenterX = centerX;
+    gameState.arcCenterY = centerY;
+    gameState.arcRadius = radius;
 
     // Gentle pulsing
     scene.tweens.add({
