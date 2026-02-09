@@ -40,16 +40,16 @@ const GAME = {
     MAX_VELOCITY: 400,
 
     // Obstacles
-    OBSTACLE_SPEED: 300,        // Medium/Hard start
-    OBSTACLE_SPAWN_RATE: 1400,  // Faster spawn
-    GAP_SIZE: 150,              // Tighter gaps
+    OBSTACLE_SPEED: 200,        // Slower start
+    OBSTACLE_SPAWN_RATE: 2500,  // Wider gaps
+    GAP_SIZE: 170,              // Slightly wider gaps
     MIN_GAP_Y: 100,
     MAX_GAP_Y: 400,
 
     // Difficulty
-    SPEED_INCREASE: 15,         // Ramps up faster
-    SPAWN_DECREASE: 60,
-    MIN_SPAWN_RATE: 700,
+    SPEED_INCREASE: 5,          // Slower ramping initially
+    SPAWN_DECREASE: 30,
+    MIN_SPAWN_RATE: 900,
 
     // Scoring
     POINTS_PER_PASS: 1,
@@ -114,7 +114,8 @@ let gameState = {
     unlockedBadges: [],
     blackHoles: null,
     blackHoleTimer: null,
-    meteorTimer: null
+    meteorTimer: null,
+    lastSpawnX: 0
 };
 
 let sceneRef;
@@ -467,11 +468,6 @@ function create() {
         onCollision(rocket, hole);
     }, null, this);
 
-    // Collision for P2 if Multi
-    if (gameState.gameMode === 'MULTI' && gameState.rocket2) {
-        this.physics.add.overlap(gameState.rocket2, gameState.obstacles, () => handleMultiCrash('P2'), null, this);
-    }
-
     // Create UI
     createUI(this);
 
@@ -485,7 +481,7 @@ function create() {
         // Rocket sprite
         gameState.rocket = scene.physics.add.sprite(150, y, 'rocket');
         gameState.rocket.setDepth(10);
-        gameState.rocket.body.setSize(35, 30);
+        gameState.rocket.body.setSize(25, 20);
 
         gameState.rocket.body.setOffset(5, 7);
         gameState.rocket.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
@@ -628,11 +624,14 @@ function update() {
     gameState.stars.forEach(star => {
         if (star.scrollSpeed) {
             star.x -= gameState.obstacleSpeed * star.scrollSpeed * 0.016;
-            if (star.x < -50) {
-                star.x = 850;
+            if (star.x < -100) {
+                star.x = 900;
             }
         }
     });
+
+    // Move lastSpawnX tracking
+    gameState.lastSpawnX -= gameState.obstacleSpeed * 0.016;
 
     // Check obstacle passing (scoring)
     gameState.obstacles.getChildren().forEach(obstacle => {
@@ -808,13 +807,6 @@ function startGame() {
         loop: true
     });
 
-    // Start Big UFO spawning (Rare - dangerous)
-    gameState.bigUfoTimer = sceneRef.time.addEvent({
-        delay: 15000, // Every 15 seconds
-        callback: spawnBigUFO,
-        loop: true
-    });
-
     // Start Black Hole spawning (Frequent Traps with Breaks)
     scheduleNextBlackHole();
 
@@ -898,8 +890,17 @@ function collectStar(rocket, star) {
 function spawnObstacle() {
     if (gameState.isGameOver) return;
 
-    // 50/50 Chance between Classic Planets and Giant Canyon
-    if (Phaser.Math.Between(0, 100) > 50) {
+    // Minimum distance check: ensure at least 300px between obstacle groups
+    if (gameState.lastSpawnX > sceneRef.scale.width - 300) {
+        return;
+    }
+
+    gameState.lastSpawnX = sceneRef.scale.width + 100;
+
+    // More random spawning: 60/40 between Canyon and Classic
+    // And sometimes skip one side for "irregular" placement
+    const type = Phaser.Math.Between(0, 100);
+    if (type > 40) {
         spawnGiantCanyon();
     } else {
         spawnClassicPlanets();
@@ -911,34 +912,39 @@ function spawnClassicPlanets() {
     const gapHeight = GAME.GAP_SIZE + Phaser.Math.Between(0, 50); // Varied gap
     const spawnX = sceneRef.scale.width + 100;
 
-    // Floating Planets (Classic) - Irregular Placement
+    // Irregular placement: 20% chance to only spawn one planet
+    const spawnBoth = Math.random() > 0.2;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
     // Top Planet
-    const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
-    const topOffset = Phaser.Math.Between(-50, 50); // Stagger X
-    const topPlanet = gameState.obstacles.create(spawnX + topOffset, gapY - 100, 'planet');
-    topPlanet.setOrigin(0.5, 0.5);
-    topPlanet.setScale(topScale);
-    topPlanet.body.setCircle(95); // Adjust for scale? Phaser arcade physics body doesn't auto-scale radius perfectly with setScale unless updated.
-    // Better to use setCircle with scale calculation or just let it be close enough. 
-    // Actually, setCircle radius is unscaled. We should ideally scale it.
-    topPlanet.body.setCircle(95 * topScale);
-    topPlanet.body.allowGravity = false;
-    topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-    topPlanet.body.setImmovable(true);
-    topPlanet.isTop = true;
-    topPlanet.scored = false;
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const topOffset = Phaser.Math.Between(-50, 50);
+        const topPlanet = gameState.obstacles.create(spawnX + topOffset, gapY - 100, 'planet');
+        topPlanet.setOrigin(0.5, 0.5);
+        topPlanet.setScale(topScale);
+        topPlanet.body.setCircle(80 * topScale); // Reduced hitbox size for fairness
+        topPlanet.body.allowGravity = false;
+        topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        topPlanet.body.setImmovable(true);
+        topPlanet.isTop = true;
+        topPlanet.scored = false;
+    }
 
     // Bottom Planet
-    const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
-    const botOffset = Phaser.Math.Between(-50, 50); // Stagger X
-    const bottomPlanet = gameState.obstacles.create(spawnX + botOffset, gapY + gapHeight + 100, 'planet');
-    bottomPlanet.setOrigin(0.5, 0.5);
-    bottomPlanet.setScale(botScale);
-    bottomPlanet.body.setCircle(95 * botScale);
-    bottomPlanet.body.allowGravity = false;
-    bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-    bottomPlanet.body.setImmovable(true);
-    bottomPlanet.scored = false;
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const botOffset = Phaser.Math.Between(-50, 50);
+        const bottomPlanet = gameState.obstacles.create(spawnX + botOffset, gapY + gapHeight + 100, 'planet');
+        bottomPlanet.setOrigin(0.5, 0.5);
+        bottomPlanet.setScale(botScale);
+        bottomPlanet.body.setCircle(80 * botScale); // Reduced hitbox size
+        bottomPlanet.body.allowGravity = false;
+        bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomPlanet.body.setImmovable(true);
+        bottomPlanet.scored = false;
+    }
 }
 
 function spawnGiantCanyon() {
@@ -948,31 +954,39 @@ function spawnGiantCanyon() {
 
     const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
 
-    // Massive Bodies - Broken Alignment
+    // Irregular placement: 30% chance to only spawn one giant body
+    const spawnBoth = Math.random() > 0.3;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
     // Top Body
-    const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
-    const topX = spawnX + Phaser.Math.Between(-100, 100); // Significant staggered X
-    const topBody = gameState.obstacles.create(topX, gapY - 350, texture);
-    topBody.setOrigin(0.5, 0.5);
-    topBody.setScale(topScale);
-    topBody.body.setCircle(280 * topScale);
-    topBody.body.allowGravity = false;
-    topBody.body.setVelocityX(-gameState.obstacleSpeed);
-    topBody.body.setImmovable(true);
-    topBody.isTop = true;
-    topBody.scored = false;
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const topX = spawnX + Phaser.Math.Between(-100, 100);
+        const topBody = gameState.obstacles.create(topX, gapY - 350, texture);
+        topBody.setOrigin(0.5, 0.5);
+        topBody.setScale(topScale);
+        topBody.body.setCircle(240 * topScale); // Reduced hitbox size (from 280)
+        topBody.body.allowGravity = false;
+        topBody.body.setVelocityX(-gameState.obstacleSpeed);
+        topBody.body.setImmovable(true);
+        topBody.isTop = true;
+        topBody.scored = false;
+    }
 
     // Bottom Body
-    const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
-    const botX = spawnX + Phaser.Math.Between(-100, 100); // Independent staggered X
-    const bottomBody = gameState.obstacles.create(botX, gapY + gapHeight + 350, texture);
-    bottomBody.setOrigin(0.5, 0.5);
-    bottomBody.setScale(botScale);
-    bottomBody.body.setCircle(280 * botScale);
-    bottomBody.body.allowGravity = false;
-    bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
-    bottomBody.body.setImmovable(true);
-    bottomBody.scored = false;
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const botX = spawnX + Phaser.Math.Between(-100, 100);
+        const bottomBody = gameState.obstacles.create(botX, gapY + gapHeight + 350, texture);
+        bottomBody.setOrigin(0.5, 0.5);
+        bottomBody.setScale(botScale);
+        bottomBody.body.setCircle(240 * botScale); // Reduced hitbox size
+        bottomBody.body.allowGravity = false;
+        bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomBody.body.setImmovable(true);
+        bottomBody.scored = false;
+    }
 }
 
 function spawnFlyingAsteroid() {
@@ -1005,24 +1019,6 @@ function spawnUFO() {
     ufo.setDepth(6);
 }
 
-function spawnBigUFO() {
-    if (gameState.isGameOver) return;
-
-    // Only spawn if score > 5
-    if (gameState.score < 5) return;
-
-    const y = Phaser.Math.Between(150, sceneRef.scale.height - 150);
-    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, y, 'ufo');
-
-    // Big dangerous UFO
-    ufo.isDummy = false;
-    ufo.setScale(1.5); // Bigger
-    ufo.setTint(0xff0000); // Red tint for danger
-    ufo.body.allowGravity = false;
-    ufo.startY = y;
-    ufo.sineOffset = 0;
-    ufo.setDepth(6);
-}
 
 function createBlackHoleTexture(scene) {
     const gfx = scene.add.graphics();
@@ -1130,8 +1126,17 @@ function deactivateShield() {
 function increaseDifficulty() {
     if (gameState.isGameOver) return;
 
+    // Difficulty multiplier
+    let multiplier = 1.0;
+    if (gameState.score < 20) {
+        multiplier = 0.5; // Slower ramping in early game
+    } else {
+        // Scaling with badges (e.g., 20% harder per badge)
+        multiplier = 1.0 + (gameState.unlockedBadges.length * 0.2);
+    }
+
     // Increase speed
-    gameState.obstacleSpeed += GAME.SPEED_INCREASE;
+    gameState.obstacleSpeed += GAME.SPEED_INCREASE * multiplier;
 
     // Update existing obstacles
     gameState.obstacles.getChildren().forEach(obstacle => {
@@ -1140,7 +1145,7 @@ function increaseDifficulty() {
 
     // Decrease spawn rate (more obstacles)
     if (gameState.spawnRate > GAME.MIN_SPAWN_RATE) {
-        gameState.spawnRate -= GAME.SPAWN_DECREASE;
+        gameState.spawnRate -= GAME.SPAWN_DECREASE * multiplier;
 
         // Restart timer with new rate
         gameState.obstacleTimer.remove();
@@ -1164,6 +1169,11 @@ function addScore(points) {
         duration: 100,
         yoyo: true
     });
+
+    // Ramping difficulty every 5 points
+    if (gameState.score > 0 && gameState.score % 5 === 0) {
+        increaseDifficulty();
+    }
 }
 
 function updateScore() {
