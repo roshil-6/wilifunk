@@ -41,10 +41,20 @@
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
                     <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
 
+                    <!-- Intensity Slider -->
+                    <div class="intensity-control" style="margin-top: 30px; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="color: #888; font-size: 14px; letter-spacing: 2px;">INTENSITY</span>
+                            <span id="intensityValue"
+                                style="color: #00d4ff; font-weight: bold; font-size: 18px;">25</span>
+                        </div>
+                        <input type="range" id="intensitySlider" min="10" max="50" value="25" class="intensity-slider">
+                        <div id="intensityTagline" class="intensity-feedback">Steady as she goes.</div>
+                    </div>
+
                     <div class="action-buttons"
-                        style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                        style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
                         <button id="startGameBtn" class="start-button">🚀 LAUNCH</button>
-                        <!-- VS MODE button hidden -->
                     </div>
                 </div>
 
@@ -124,6 +134,66 @@
         document.getElementById('pauseBtn').addEventListener('click', () => {
             showHomeMenu();
         });
+
+        // Intensity Handling
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityValue = document.getElementById('intensityValue');
+        const intensityTagline = document.getElementById('intensityTagline');
+
+        // Load saved intensity
+        const savedIntensity = localStorage.getItem('spaceRocketIntensity') || '25';
+        intensitySlider.value = savedIntensity;
+        intensityValue.textContent = savedIntensity;
+
+        intensitySlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            intensityValue.textContent = val;
+            localStorage.setItem('spaceRocketIntensity', val);
+            updateIntensityFeedback(val);
+        });
+
+        function updateIntensityFeedback(val) {
+            let feedback = "";
+            let color = "#00d4ff";
+
+            if (val <= 20) {
+                const teases = [
+                    "Too scared of the void?",
+                    "Grandma mode activated.",
+                    "Safe and boring, huh?",
+                    "Training wheels on."
+                ];
+                feedback = teases[Math.floor(val / 5) % teases.length];
+                color = "#ffdd59";
+            } else if (val < 40) {
+                feedback = "Steady as she goes.";
+                color = "#00d4ff";
+            } else {
+                const apprec = [
+                    "NOW WE'RE TALKING!",
+                    "Absolute orbital madness.",
+                    "You've got titanium nerves!",
+                    "GLORY OR DEATH!"
+                ];
+                feedback = apprec[Math.floor((val - 40) / 3) % apprec.length];
+                color = "#ff3366";
+            }
+
+            intensityTagline.textContent = feedback;
+            intensityTagline.style.color = color;
+            intensityValue.style.color = color;
+
+            // Pulse effect
+            intensityValue.style.transition = "none";
+            intensityValue.style.transform = "scale(1.3)";
+            setTimeout(() => {
+                intensityValue.style.transition = "transform 0.2s ease";
+                intensityValue.style.transform = "scale(1)";
+            }, 50);
+        }
+
+        // Init feedback
+        updateIntensityFeedback(savedIntensity);
 
         // Restart button
         document.getElementById('restartBtn')?.addEventListener('click', () => {

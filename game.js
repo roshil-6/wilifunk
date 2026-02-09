@@ -131,9 +131,10 @@ let shieldEffect;
 function preload() {
     sceneRef = this;
 
-    // Load high score & badges
+    // Load high score, badges & intensity
     gameState.highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
     gameState.unlockedBadges = JSON.parse(localStorage.getItem('spaceRocketBadges') || '[]');
+    gameState.intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
     updateHomeBadges();
 
     // Create rocket sprite
@@ -774,8 +775,18 @@ function startGame() {
     gameState.isPlaying = true;
     gameState.isGameOver = false;
     gameState.score = 0;
-    gameState.obstacleSpeed = GAME.OBSTACLE_SPEED;
-    gameState.spawnRate = GAME.OBSTACLE_SPAWN_RATE;
+
+    // Intensity mapping
+    const intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
+    gameState.intensity = intensity;
+
+    // Map intensity to speed and spawn rate
+    // Range: 10 (Easy) to 50 (Extreme)
+    // Speed: 10 -> 160, 50 -> 400
+    // Spawn: 10 -> 3400, 50 -> 1000
+    gameState.obstacleSpeed = 100 + (intensity * 6);
+    gameState.spawnRate = 4000 - (intensity * 60);
+
     gameState.collectedStars = 0;
     gameState.hasShield = false;
     gameState.isInvincible = false;
