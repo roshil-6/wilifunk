@@ -24,6 +24,14 @@
                 <div class="overlay-title game-over-title">CRASHED!</div>
                 <div class="overlay-message" id="gameOverMessage">Your rocket couldn't make it...</div>
                 <div class="overlay-stats" id="gameOverStats"></div>
+
+                <!-- Name Entry for Leaderboard -->
+                <div id="leaderboardEntry" class="hidden" style="margin-bottom: 20px;">
+                    <input type="text" id="playerNameInput" placeholder="ENTER YOUR NAME" maxlength="15"
+                        class="name-input">
+                    <button id="saveScoreBtn" class="menu-button primary small" style="margin-top: 10px;">SAVE
+                        SCORE</button>
+                </div>
                 <div class="overlay-buttons">
                     <button id="restartBtn" class="menu-button primary">LAUNCH AGAIN</button>
                     <button id="homeBtn" class="menu-button secondary">MENU</button>
@@ -105,6 +113,14 @@
                     <h2 class="rules-title">TROPHY CASE</h2>
                     <div id="badgeContainer" class="badge-grid">
                         <p class="no-badges">No badges yet...</p>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Section -->
+                <div class="leaderboard-section">
+                    <h2 class="rules-title">TOP PILOTS</h2>
+                    <div id="leaderboardList" class="leaderboard-list">
+                        <p class="no-badges">Loading rankings...</p>
                     </div>
                 </div>
 
@@ -235,6 +251,52 @@
                 isNewRecord ? '🎉 NEW HIGH SCORE!' : 'Your rocket crashed...';
             document.getElementById('gameOverStats').innerHTML =
                 `Score: <strong>${score}</strong> | Best: <strong>${highScore}</strong>`;
+
+            // Show leaderboard entry if score > 0
+            if (score > 0) {
+                document.getElementById('leaderboardEntry').classList.remove('hidden');
+                document.getElementById('playerNameInput').value = localStorage.getItem('lastPlayerName') || '';
+            } else {
+                document.getElementById('leaderboardEntry').classList.add('hidden');
+            }
+        };
+
+        // Leaderboard Saving
+        document.getElementById('saveScoreBtn').addEventListener('click', () => {
+            const nameInput = document.getElementById('playerNameInput');
+            const name = nameInput.value.trim().toUpperCase();
+
+            if (!name) {
+                nameInput.style.border = "1px solid red";
+                setTimeout(() => nameInput.style.border = "1px solid #00d4ff", 1000);
+                return;
+            }
+
+            localStorage.setItem('lastPlayerName', name);
+            if (typeof saveToLeaderboard === 'function') {
+                saveToLeaderboard(name);
+                document.getElementById('leaderboardEntry').classList.add('hidden');
+                // Show success feedback?
+                document.getElementById('gameOverMessage').textContent = "SCORE SAVED! 🚀";
+            }
+        });
+
+        window.updateLeaderboardUI = function (leaderboard) {
+            const list = document.getElementById('leaderboardList');
+            if (!list) return;
+
+            if (leaderboard.length === 0) {
+                list.innerHTML = `<p class="no-badges">No records yet. Be the first!</p>`;
+                return;
+            }
+
+            list.innerHTML = leaderboard.map((entry, index) => `
+                <div class="leaderboard-item ${index < 3 ? 'top-rank' : ''}">
+                    <span class="rank-number">#${index + 1}</span>
+                    <span class="rank-name">${entry.name}</span>
+                    <span class="rank-score">${entry.score}</span>
+                </div>
+            `).join('');
         };
         // Dynamic Tagline based on High Score
         function updateTagline() {

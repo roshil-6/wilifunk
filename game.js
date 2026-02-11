@@ -112,6 +112,7 @@ let gameState = {
     isInvincible: false,
     // Persistence
     unlockedBadges: [],
+    leaderboard: [],
     blackHoles: null,
     blackHoleTimer: null,
     meteorTimer: null,
@@ -131,11 +132,13 @@ let shieldEffect;
 function preload() {
     sceneRef = this;
 
-    // Load high score, badges & intensity
+    // Load high score, badges, intensity & leaderboard
     gameState.highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
     gameState.unlockedBadges = JSON.parse(localStorage.getItem('spaceRocketBadges') || '[]');
     gameState.intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
+    gameState.leaderboard = JSON.parse(localStorage.getItem('spaceRocketLeaderboard') || '[]');
     updateHomeBadges();
+    updateLeaderboardUI();
 
     // Create rocket sprite
     createRocketTexture(this);
@@ -1193,6 +1196,25 @@ function addScore(points) {
     if (gameState.score > 0 && gameState.score % 5 === 0) {
         increaseDifficulty();
     }
+}
+
+function updateLeaderboardUI() {
+    if (typeof window.updateLeaderboardUI === 'function') {
+        window.updateLeaderboardUI(gameState.leaderboard);
+    }
+}
+
+function saveToLeaderboard(name) {
+    if (!name) return;
+
+    gameState.leaderboard.push({ name: name, score: gameState.score, date: new Date().toLocaleDateString() });
+
+    // Sort and keep top 10
+    gameState.leaderboard.sort((a, b) => b.score - a.score);
+    gameState.leaderboard = gameState.leaderboard.slice(0, 10);
+
+    localStorage.setItem('spaceRocketLeaderboard', JSON.stringify(gameState.leaderboard));
+    updateLeaderboardUI();
 }
 
 function updateScore() {
