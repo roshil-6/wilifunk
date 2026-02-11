@@ -61,6 +61,12 @@
                 <div class="title-section">
                     <div class="rocket-icon">🚀</div>
                     <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
+                    <div id="pilotDisplay" class="pilot-info"
+                        style="margin-bottom: 10px; color: #888; font-size: 14px; letter-spacing: 1px;">
+                        PILOT: <span id="currentPilotName" style="color: #00d4ff; font-weight: bold;">---</span>
+                        <a href="#" id="changePilotBtn"
+                            style="color: #ff3366; margin-left: 10px; font-size: 11px; text-decoration: underline;">CHANGE</a>
+                    </div>
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
                     <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
 
@@ -156,11 +162,36 @@
         const identifyOverlay = document.getElementById('identifyOverlay');
         const pilotNameInput = document.getElementById('pilotNameInput');
 
+        // Pilot Management UI
+        function updatePilotDisplay() {
+            const name = localStorage.getItem('lastPlayerName') || 'UNKNOWN';
+            const display = document.getElementById('currentPilotName');
+            if (display) display.textContent = name;
+        }
+
+        document.getElementById('changePilotBtn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('lastPlayerName');
+            updatePilotDisplay();
+            triggerStartFlow();
+        });
+
+        // Initial update
+        updatePilotDisplay();
+
         const triggerStartFlow = () => {
-            console.log("Start button clicked, showing identification popup...");
-            identifyOverlay.classList.remove('hidden');
-            pilotNameInput.focus();
-            pilotNameInput.value = localStorage.getItem('lastPlayerName') || '';
+            const savedName = localStorage.getItem('lastPlayerName');
+            if (savedName) {
+                console.log("Found existing pilot:", savedName);
+                if (typeof window.setPlayerName === 'function') {
+                    window.setPlayerName(savedName);
+                }
+                launchGame();
+            } else {
+                console.log("No pilot name found, showing identification popup...");
+                identifyOverlay.classList.remove('hidden');
+                pilotNameInput.focus();
+            }
         };
 
         document.getElementById('mainStartBtn')?.addEventListener('click', triggerStartFlow);

@@ -141,12 +141,33 @@ function preload() {
     // Defensive leaderboard load
     try {
         const savedLeaderboard = localStorage.getItem('spaceRocketLeaderboard');
-        gameState.leaderboard = savedLeaderboard ? JSON.parse(savedLeaderboard) : [];
-        if (!Array.isArray(gameState.leaderboard)) gameState.leaderboard = [];
+        let rawLeaderboard = savedLeaderboard ? JSON.parse(savedLeaderboard) : [];
+        if (!Array.isArray(rawLeaderboard)) rawLeaderboard = [];
+
+        // Deduplication & Cleanup: Merge existing duplicates by name (keeping best score)
+        const cleanMap = new Map();
+        rawLeaderboard.forEach(entry => {
+            const name = entry.name.toUpperCase();
+            if (!cleanMap.has(name) || entry.score > cleanMap.get(name).score) {
+                cleanMap.set(name, entry);
+            }
+        });
+
+        gameState.leaderboard = Array.from(cleanMap.values())
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10);
+
+        // Persist the cleaned version if it changed
+        if (gameState.leaderboard.length !== rawLeaderboard.length) {
+            localStorage.setItem('spaceRocketLeaderboard', JSON.stringify(gameState.leaderboard));
+        }
     } catch (e) {
-        console.error("Leaderboard load failed:", e);
+        console.error("Leaderboard load/cleanup failed:", e);
         gameState.leaderboard = [];
     }
+
+    // Load session name
+    gameState.playerName = localStorage.getItem('lastPlayerName') || '';
 
     updateHomeBadges();
     updateLeaderboardUI();
