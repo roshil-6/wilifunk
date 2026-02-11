@@ -39,6 +39,21 @@
             </div>
         </div>
 
+        <!-- Identify Pilot Popup (Pre-Game) -->
+        <div id="identifyOverlay" class="overlay hidden">
+            <div class="overlay-content">
+                <div class="overlay-title" style="color: #00d4ff;">IDENTIFY PILOT</div>
+                <div class="overlay-message">Sign the flight log to record your rank.</div>
+                <div style="margin-bottom: 30px;">
+                    <input type="text" id="pilotNameInput" placeholder="PILOT NAME" maxlength="15" class="name-input">
+                </div>
+                <div class="overlay-buttons">
+                    <button id="confirmPilotBtn" class="menu-button primary">LAUNCH</button>
+                    <button id="skipPilotBtn" class="menu-button secondary">SKIP & FLY</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Home Menu -->
         <div id="homeMenu" class="home-menu">
             <div class="home-content">
@@ -62,7 +77,7 @@
 
                     <div class="action-buttons"
                         style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
-                        <button id="startGameBtn" class="start-button">🚀 LAUNCH</button>
+                        <button id="mainStartBtn" class="start-button">🚀 LAUNCH</button>
                     </div>
                 </div>
 
@@ -124,10 +139,7 @@
                     </div>
                 </div>
 
-                <!-- Start Button -->
-                <button id="startGameBtn" class="start-button">
-                    🚀 LAUNCH
-                </button>
+                <!-- Start Button (Removed duplicate) -->
             </div>
         </div>
     </div>
@@ -140,11 +152,48 @@
         const gameUI = document.getElementById('gameUI');
         const gameOverOverlay = document.getElementById('gameOverOverlay');
 
-        // Start Game
-        document.getElementById('startGameBtn').addEventListener('click', () => {
+        // Start Game Flow
+        const identifyOverlay = document.getElementById('identifyOverlay');
+        const pilotNameInput = document.getElementById('pilotNameInput');
+
+        const triggerStartFlow = () => {
+            console.log("Start button clicked, showing identification popup...");
+            identifyOverlay.classList.remove('hidden');
+            pilotNameInput.focus();
+            pilotNameInput.value = localStorage.getItem('lastPlayerName') || '';
+        };
+
+        document.getElementById('mainStartBtn')?.addEventListener('click', triggerStartFlow);
+
+        document.getElementById('confirmPilotBtn').addEventListener('click', () => {
+            const name = pilotNameInput.value.trim().toUpperCase();
+            console.log("Confirming pilot name:", name);
+            if (name) {
+                localStorage.setItem('lastPlayerName', name);
+                if (typeof window.setPlayerName === 'function') {
+                    window.setPlayerName(name);
+                }
+            } else {
+                if (typeof window.setPlayerName === 'function') {
+                    window.setPlayerName('RENEGADE'); // Handle blank as RENEGADE
+                }
+            }
+            launchGame();
+        });
+
+        document.getElementById('skipPilotBtn').addEventListener('click', () => {
+            if (typeof window.setPlayerName === 'function') {
+                window.setPlayerName('PILOT'); // Default name for skip
+            }
+            launchGame();
+        });
+
+        function launchGame() {
+            identifyOverlay.classList.add('hidden');
             homeMenu.classList.add('hidden');
             gameUI.classList.remove('hidden');
-        });
+            // Trigger game start if needed, though game.js usually handles thrust-to-start
+        }
 
         // Pause/Menu button
         document.getElementById('pauseBtn').addEventListener('click', () => {

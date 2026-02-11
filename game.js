@@ -116,7 +116,8 @@ let gameState = {
     blackHoles: null,
     blackHoleTimer: null,
     meteorTimer: null,
-    lastSpawnX: 0
+    lastSpawnX: 0,
+    playerName: ''
 };
 
 let sceneRef;
@@ -1209,15 +1210,36 @@ function addScore(points) {
 }
 
 function updateLeaderboardUI() {
+    console.log("Updating Leaderboard UI with data:", gameState.leaderboard);
     if (typeof window.updateLeaderboardUI === 'function') {
         window.updateLeaderboardUI(gameState.leaderboard || []);
     }
 }
 
-function saveToLeaderboard(name) {
-    if (!name) return;
+// Global hook for index.html to set name
+window.setPlayerName = function (name) {
+    console.log("Setting player name to:", name);
+    gameState.playerName = name;
+};
 
-    gameState.leaderboard.push({ name: name, score: gameState.score, date: new Date().toLocaleDateString() });
+function saveToLeaderboard(name) {
+    if (!name) {
+        console.warn("Attempted to save to leaderboard without a name.");
+        return;
+    }
+
+    console.log(`Saving score for ${name}: ${gameState.score}`);
+
+    // Check if leaderboard exists
+    if (!Array.isArray(gameState.leaderboard)) {
+        gameState.leaderboard = [];
+    }
+
+    gameState.leaderboard.push({
+        name: name,
+        score: gameState.score,
+        date: new Date().toLocaleDateString()
+    });
 
     // Sort and keep top 10
     gameState.leaderboard.sort((a, b) => b.score - a.score);
@@ -1338,6 +1360,11 @@ function gameOver() {
     gameState.isGameOver = true;
     gameState.isPlaying = false;
 
+    // Auto-save to leaderboard if name is set
+    if (gameState.score > 0 && gameState.playerName) {
+        saveToLeaderboard(gameState.playerName);
+    }
+
     // Stop timers
     if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
     if (gameState.asteroidTimer) gameState.asteroidTimer.remove();
@@ -1363,6 +1390,12 @@ function gameOver() {
     // Show game over UI
     if (typeof window.showGameOver === 'function') {
         window.showGameOver(gameState.score, gameState.highScore);
+    }
+
+    // If we auto-saved, update the game over message or hide entry
+    if (gameState.playerName && gameState.score > 0) {
+        const entry = document.getElementById('leaderboardEntry');
+        if (entry) entry.classList.add('hidden');
     }
 }
 
