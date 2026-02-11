@@ -96,54 +96,6 @@ const LEADERBOARD_CONFIG = {
     PRIVATE_URL: "https://www.dreamlo.com/lb/6R20kYitE0W2J2jKkK7y_w5X6vR3V280KSi969YtHt4A"
 };
 
-// ... inside fetchGlobalLeaderboard ...
-async function fetchGlobalLeaderboard() {
-    console.log("Fetching global rankings from dreamlo...");
-    const syncText = document.getElementById('syncText');
-    if (syncText) syncText.textContent = "Syncing... 🛰️";
-
-    try {
-        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`, { cache: 'no-store' });
-        const rawText = await response.text(); // Get raw text first to debug errors
-
-        try {
-            const data = JSON.parse(rawText);
-
-            if (data && data.dreamlo && data.dreamlo.leaderboard) {
-                const lb = data.dreamlo.leaderboard.entry;
-                const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
-
-                gameState.leaderboard = entries.map(e => ({
-                    name: e.name,
-                    score: parseInt(e.score),
-                    date: e.date
-                })).sort((a, b) => b.score - a.score).slice(0, 10);
-
-                if (syncText) {
-                    syncText.textContent = "LIVE ✅";
-                    syncText.style.color = "#00ff88";
-                }
-                updateLeaderboardUI();
-            } else {
-                console.log("Empty or invalid leaderboard JSON:", data);
-                gameState.leaderboard = [];
-                if (syncText) syncText.textContent = "LIVE (No Scores) ✅";
-                updateLeaderboardUI();
-            }
-        } catch (jsonErr) {
-            console.error("Dreamlo returned invalid JSON:", rawText);
-            if (syncText) {
-                syncText.textContent = "API ERROR ❌";
-                syncText.style.color = "#ff3366";
-            }
-            throw new Error(`Invalid JSON: ${rawText.substring(0, 50)}`);
-        }
-    } catch (e) {
-        console.error("Global fetch failed:", e.message);
-        updateLeaderboardUI();
-    }
-}
-
 // GAME STATE
 // ====================================
 let gameState = {

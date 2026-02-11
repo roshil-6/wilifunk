@@ -191,16 +191,27 @@
 
         const triggerStartFlow = () => {
             const savedName = localStorage.getItem('lastPlayerName');
-            if (savedName) {
-                console.log("Found existing pilot:", savedName);
+            console.log("Triggering start flow. Current saved name:", savedName);
+
+            if (savedName && savedName !== 'RENEGADE' && savedName !== 'PILOT') {
+                console.log("Auto-launching with stored name:", savedName);
                 if (typeof window.setPlayerName === 'function') {
                     window.setPlayerName(savedName);
+                    updatePilotDisplay();
                 }
                 launchGame();
             } else {
-                console.log("No pilot name found, showing identification popup...");
-                identifyOverlay.classList.remove('hidden');
-                pilotNameInput.focus();
+                console.log("Opening identification popup...");
+                if (identifyOverlay) {
+                    identifyOverlay.classList.remove('hidden');
+                    if (pilotNameInput) {
+                        pilotNameInput.value = savedName || '';
+                        pilotNameInput.focus();
+                    }
+                } else {
+                    console.error("Critical Error: identifyOverlay not found!");
+                    launchGame(); // Emergency launch
+                }
             }
         };
 
@@ -230,10 +241,10 @@
         });
 
         function launchGame() {
-            identifyOverlay.classList.add('hidden');
-            homeMenu.classList.add('hidden');
-            gameUI.classList.remove('hidden');
-            // Trigger game start if needed, though game.js usually handles thrust-to-start
+            console.log("Initializing Game UI transition...");
+            if (identifyOverlay) identifyOverlay.classList.add('hidden');
+            if (homeMenu) homeMenu.classList.add('hidden');
+            if (gameUI) gameUI.classList.remove('hidden');
         }
 
         // Pause/Menu button
