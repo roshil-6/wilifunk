@@ -652,6 +652,13 @@ function update() {
     // Update flying asteroids
     gameState.flyingObstacles.getChildren().forEach(asteroid => {
         asteroid.rotation += 0.02;
+
+        // Check for passing (scoring)
+        if (!asteroid.scored && asteroid.x < gameState.rocket.x - 30) {
+            addScore(GAME.POINTS_PER_PASS);
+            asteroid.scored = true;
+        }
+
         if (asteroid.x < -100) {
             asteroid.destroy();
         }
@@ -1011,6 +1018,7 @@ function spawnFlyingAsteroid() {
     // Faster than normal obstacles
     asteroid.body.setVelocityX(-(gameState.obstacleSpeed * 1.5));
     asteroid.setDepth(6);
+    asteroid.scored = false;
 }
 
 function spawnUFO() {
@@ -1443,6 +1451,7 @@ function spawnMeteor() {
         Math.cos(angle) * speed,
     );
     meteor.setDepth(6);
+    meteor.scored = false;
 }
 
 // ====================================
