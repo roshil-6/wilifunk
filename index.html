@@ -285,7 +285,7 @@
             const list = document.getElementById('leaderboardList');
             if (!list) return;
 
-            if (leaderboard.length === 0) {
+            if (!leaderboard || !Array.isArray(leaderboard) || leaderboard.length === 0) {
                 list.innerHTML = `<p class="no-badges">No records yet. Be the first!</p>`;
                 return;
             }

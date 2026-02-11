@@ -136,7 +136,17 @@ function preload() {
     gameState.highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
     gameState.unlockedBadges = JSON.parse(localStorage.getItem('spaceRocketBadges') || '[]');
     gameState.intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
-    gameState.leaderboard = JSON.parse(localStorage.getItem('spaceRocketLeaderboard') || '[]');
+
+    // Defensive leaderboard load
+    try {
+        const savedLeaderboard = localStorage.getItem('spaceRocketLeaderboard');
+        gameState.leaderboard = savedLeaderboard ? JSON.parse(savedLeaderboard) : [];
+        if (!Array.isArray(gameState.leaderboard)) gameState.leaderboard = [];
+    } catch (e) {
+        console.error("Leaderboard load failed:", e);
+        gameState.leaderboard = [];
+    }
+
     updateHomeBadges();
     updateLeaderboardUI();
 
@@ -1200,7 +1210,7 @@ function addScore(points) {
 
 function updateLeaderboardUI() {
     if (typeof window.updateLeaderboardUI === 'function') {
-        window.updateLeaderboardUI(gameState.leaderboard);
+        window.updateLeaderboardUI(gameState.leaderboard || []);
     }
 }
 
