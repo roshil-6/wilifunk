@@ -90,12 +90,59 @@ const COLORS = {
 // GLOBAL LEADERBOARD CONFIG (dreamlo.com)
 // ====================================
 const LEADERBOARD_CONFIG = {
-    // PUBLIC KEY (Safe to share)
-    PUBLIC_URL: "https://www.dreamlo.com/lb/67ab19a38f40bb839446e01a",
-    // PRIVATE KEY (This allows writing and clearing scores - normally you'd keep this more secure, 
-    // but for this simple hobby project we'll include it. Users can technically clear the board if they find it.)
-    PRIVATE_URL: "https://www.dreamlo.com/lb/AUnO-059OkyR9W0C3A_uMg6uDIdvT1-Eqi5K7-0oXUwg"
+    // PUBLIC KEY
+    PUBLIC_URL: "https://www.dreamlo.com/lb/67abae868f40bb839446e033",
+    // PRIVATE KEY
+    PRIVATE_URL: "https://www.dreamlo.com/lb/6R20kYitE0W2J2jKkK7y_w5X6vR3V280KSi969YtHt4A"
 };
+
+// ... inside fetchGlobalLeaderboard ...
+async function fetchGlobalLeaderboard() {
+    console.log("Fetching global rankings from dreamlo...");
+    const syncText = document.getElementById('syncText');
+    if (syncText) syncText.textContent = "Syncing... 🛰️";
+
+    try {
+        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`, { cache: 'no-store' });
+        const rawText = await response.text(); // Get raw text first to debug errors
+
+        try {
+            const data = JSON.parse(rawText);
+
+            if (data && data.dreamlo && data.dreamlo.leaderboard) {
+                const lb = data.dreamlo.leaderboard.entry;
+                const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
+
+                gameState.leaderboard = entries.map(e => ({
+                    name: e.name,
+                    score: parseInt(e.score),
+                    date: e.date
+                })).sort((a, b) => b.score - a.score).slice(0, 10);
+
+                if (syncText) {
+                    syncText.textContent = "LIVE ✅";
+                    syncText.style.color = "#00ff88";
+                }
+                updateLeaderboardUI();
+            } else {
+                console.log("Empty or invalid leaderboard JSON:", data);
+                gameState.leaderboard = [];
+                if (syncText) syncText.textContent = "LIVE (No Scores) ✅";
+                updateLeaderboardUI();
+            }
+        } catch (jsonErr) {
+            console.error("Dreamlo returned invalid JSON:", rawText);
+            if (syncText) {
+                syncText.textContent = "API ERROR ❌";
+                syncText.style.color = "#ff3366";
+            }
+            throw new Error(`Invalid JSON: ${rawText.substring(0, 50)}`);
+        }
+    } catch (e) {
+        console.error("Global fetch failed:", e.message);
+        updateLeaderboardUI();
+    }
+}
 
 // GAME STATE
 // ====================================
@@ -1251,38 +1298,44 @@ async function fetchGlobalLeaderboard() {
 
     try {
         const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`, { cache: 'no-store' });
-        if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
+        const rawText = await response.text();
 
-        const data = await response.json();
+        if (!response.ok) {
+            console.error("Dreamlo Error Response:", rawText);
+            if (syncText) syncText.textContent = "API ERROR ❌";
+            return;
+        }
 
-        if (data && data.dreamlo && data.dreamlo.leaderboard) {
-            const lb = data.dreamlo.leaderboard.entry;
-            const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
+        try {
+            const data = JSON.parse(rawText);
+            if (data && data.dreamlo && data.dreamlo.leaderboard) {
+                const lb = data.dreamlo.leaderboard.entry;
+                const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
 
-            gameState.leaderboard = entries.map(e => ({
-                name: e.name,
-                score: parseInt(e.score),
-                date: e.date
-            })).sort((a, b) => b.score - a.score).slice(0, 10);
+                gameState.leaderboard = entries.map(e => ({
+                    name: e.name,
+                    score: parseInt(e.score),
+                    date: e.date
+                })).sort((a, b) => b.score - a.score).slice(0, 10);
 
-            console.log("Global leaderboard sync complete:", gameState.leaderboard);
-            if (syncText) {
-                syncText.textContent = "LIVE ✅";
-                syncText.style.color = "#00ff88";
+                if (syncText) {
+                    syncText.textContent = "LIVE ✅";
+                    syncText.style.color = "#00ff88";
+                }
+                updateLeaderboardUI();
+            } else {
+                gameState.leaderboard = [];
+                if (syncText) syncText.textContent = "LIVE ✅";
+                updateLeaderboardUI();
             }
-            updateLeaderboardUI();
-        } else if (data && data.dreamlo && data.dreamlo.leaderboard === null) {
-            console.log("Leaderboard is empty on server.");
-            gameState.leaderboard = [];
-            if (syncText) syncText.textContent = "LIVE (No Scores) ✅";
+        } catch (jsonErr) {
+            console.error("Invalid JSON from Dreamlo:", rawText);
+            if (syncText) syncText.textContent = "SERVER ERROR ❌";
             updateLeaderboardUI();
         }
     } catch (e) {
-        console.error("Global leaderboard fetch failed:", e.message);
-        if (syncText) {
-            syncText.textContent = "OFFLINE ❌";
-            syncText.style.color = "#ff3366";
-        }
+        console.error("Global fetch failed:", e.message);
+        if (syncText) syncText.textContent = "NETWORK ERROR ❌";
         updateLeaderboardUI();
     }
 }
