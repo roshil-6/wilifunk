@@ -25,31 +25,9 @@
                 <div class="overlay-message" id="gameOverMessage">Your rocket couldn't make it...</div>
                 <div class="overlay-stats" id="gameOverStats"></div>
 
-                <!-- Name Entry for Leaderboard -->
-                <div id="leaderboardEntry" class="hidden" style="margin-bottom: 20px;">
-                    <input type="text" id="playerNameInput" placeholder="ENTER YOUR NAME" maxlength="15"
-                        class="name-input">
-                    <button id="saveScoreBtn" class="menu-button primary small" style="margin-top: 10px;">SAVE
-                        SCORE</button>
-                </div>
                 <div class="overlay-buttons">
                     <button id="restartBtn" class="menu-button primary">LAUNCH AGAIN</button>
                     <button id="homeBtn" class="menu-button secondary">MENU</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Identify Pilot Popup (Pre-Game) -->
-        <div id="identifyOverlay" class="overlay hidden">
-            <div class="overlay-content">
-                <div class="overlay-title" style="color: #00d4ff;">IDENTIFY PILOT</div>
-                <div class="overlay-message">Sign the flight log to record your rank.</div>
-                <div style="margin-bottom: 30px;">
-                    <input type="text" id="pilotNameInput" placeholder="PILOT NAME" maxlength="15" class="name-input">
-                </div>
-                <div class="overlay-buttons">
-                    <button id="confirmPilotBtn" class="menu-button primary">LAUNCH</button>
-                    <button id="skipPilotBtn" class="menu-button secondary">SKIP & FLY</button>
                 </div>
             </div>
         </div>
@@ -61,14 +39,7 @@
                 <div class="title-section">
                     <div class="rocket-icon">🚀</div>
                     <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
-                    <div id="pilotDisplay" class="pilot-info"
-                        style="margin-bottom: 5px; color: #888; font-size: 14px; letter-spacing: 1px;">
-                        PILOT: <span id="currentPilotName" style="color: #00d4ff; font-weight: bold;">---</span>
-                        <a href="#" id="changePilotBtn"
-                            style="color: #ff3366; margin-left: 10px; font-size: 11px; text-decoration: underline; cursor: pointer;">CHANGE</a>
-                    </div>
-                    <div id="syncStatus" style="font-size: 10px; color: #444; margin-bottom: 15px;">🛰️ Status: <span
-                            id="syncText">Checking...</span></div>
+
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
                     <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
 
@@ -87,29 +58,6 @@
                         style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
                         <button id="mainStartBtn" class="start-button">🚀 LAUNCH</button>
                     </div>
-                </div>
-
-                <!-- Multiplayer Menu (Hidden) -->
-                <div id="multiplayerMenu" class="hidden"
-                    style="margin-top: 20px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; border: 1px solid #8e44ad;">
-                    <h2 style="color: #fff; margin-bottom: 20px;">MULTIPLAYER BATTLE</h2>
-                    <div class="vs-stats"
-                        style="display: flex; justify-content: center; gap: 30px; color: #fff; margin-bottom: 20px;">
-                        <div>
-                            <h3 style="color: #00d4ff;">P1</h3>
-                            <div id="p1Wins" style="font-size: 30px; font-weight: bold;">0</div>
-                        </div>
-                        <div style="font-size: 24px; color: #ff3366; font-weight: bold; padding-top: 10px;">VS</div>
-                        <div>
-                            <h3 style="color: #ff3366;">P2</h3>
-                            <div id="p2Wins" style="font-size: 30px; font-weight: bold;">0</div>
-                        </div>
-                    </div>
-                    <p style="color: #aaa; font-size: 14px; margin-bottom: 20px;">P1: Bottom (Tap) | P2: Top (Tap)</p>
-                    <button onclick="startMultiplayer()" class="start-button"
-                        style="background: #e74c3c;">FIGHT!</button>
-                    <button onclick="closeMultiplayer()"
-                        style="background: none; border: none; color: #ccc; text-decoration: underline; margin-top: 10px; cursor: pointer;">Cancel</button>
                 </div>
 
                 <!-- Rules Section -->
@@ -138,16 +86,6 @@
                         <p class="no-badges">No badges yet...</p>
                     </div>
                 </div>
-
-                <!-- Leaderboard Section -->
-                <div class="leaderboard-section">
-                    <h2 class="rules-title">TOP PILOTS</h2>
-                    <div id="leaderboardList" class="leaderboard-list">
-                        <p class="no-badges">Loading rankings...</p>
-                    </div>
-                </div>
-
-                <!-- Start Button (Removed duplicate) -->
             </div>
         </div>
     </div>
@@ -161,88 +99,14 @@
         const gameOverOverlay = document.getElementById('gameOverOverlay');
 
         // Start Game Flow
-        const identifyOverlay = document.getElementById('identifyOverlay');
-        const pilotNameInput = document.getElementById('pilotNameInput');
-
-        // Pilot Management UI
-        function updatePilotDisplay() {
-            const name = localStorage.getItem('lastPlayerName') || 'UNKNOWN';
-            const display = document.getElementById('currentPilotName');
-            if (display) display.textContent = name;
-        }
-
-        document.getElementById('changePilotBtn')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            localStorage.removeItem('lastPlayerName');
-            updatePilotDisplay();
-            triggerStartFlow();
-        });
-
-        // Fail-safe Reset button
-        window.resetApp = function () {
-            if (confirm("Clear all data and reset pilot?")) {
-                localStorage.clear();
-                window.location.reload();
-            }
-        };
-
-        // Initial update
-        updatePilotDisplay();
-
         const triggerStartFlow = () => {
-            const savedName = localStorage.getItem('lastPlayerName');
-            console.log("Triggering start flow. Current saved name:", savedName);
-
-            if (savedName && savedName !== 'RENEGADE' && savedName !== 'PILOT') {
-                console.log("Auto-launching with stored name:", savedName);
-                if (typeof window.setPlayerName === 'function') {
-                    window.setPlayerName(savedName);
-                    updatePilotDisplay();
-                }
-                launchGame();
-            } else {
-                console.log("Opening identification popup...");
-                if (identifyOverlay) {
-                    identifyOverlay.classList.remove('hidden');
-                    if (pilotNameInput) {
-                        pilotNameInput.value = savedName || '';
-                        pilotNameInput.focus();
-                    }
-                } else {
-                    console.error("Critical Error: identifyOverlay not found!");
-                    launchGame(); // Emergency launch
-                }
-            }
+            console.log("Launching game...");
+            launchGame();
         };
 
         document.getElementById('mainStartBtn')?.addEventListener('click', triggerStartFlow);
 
-        document.getElementById('confirmPilotBtn').addEventListener('click', () => {
-            const name = pilotNameInput.value.trim().toUpperCase();
-            console.log("Confirming pilot name:", name);
-            if (name) {
-                localStorage.setItem('lastPlayerName', name);
-                if (typeof window.setPlayerName === 'function') {
-                    window.setPlayerName(name);
-                }
-            } else {
-                if (typeof window.setPlayerName === 'function') {
-                    window.setPlayerName('RENEGADE'); // Handle blank as RENEGADE
-                }
-            }
-            launchGame();
-        });
-
-        document.getElementById('skipPilotBtn').addEventListener('click', () => {
-            if (typeof window.setPlayerName === 'function') {
-                window.setPlayerName('PILOT'); // Default name for skip
-            }
-            launchGame();
-        });
-
         function launchGame() {
-            console.log("Initializing Game UI transition...");
-            if (identifyOverlay) identifyOverlay.classList.add('hidden');
             if (homeMenu) homeMenu.classList.add('hidden');
             if (gameUI) gameUI.classList.remove('hidden');
         }
@@ -315,15 +179,9 @@
         // Restart button
         document.getElementById('restartBtn')?.addEventListener('click', () => {
             gameOverOverlay.classList.add('hidden');
-            if (typeof restartGame === 'function' && sceneRef) {
+            if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
                 restartGame(sceneRef);
             }
-            // Auto-start after restart
-            setTimeout(() => {
-                if (typeof startGame === 'function') {
-                    // Click to start
-                }
-            }, 100);
         });
 
         // Home button
@@ -334,19 +192,11 @@
             gameUI.classList.add('hidden');
             gameOverOverlay.classList.add('hidden');
 
-            // Refresh tagline based on new score
             if (typeof updateTagline === 'function') {
                 updateTagline();
             }
 
-            // Refresh leaderboard UI (Global refresh)
-            if (typeof window.refreshLeaderboard === 'function') {
-                window.refreshLeaderboard();
-            } else if (typeof updateLeaderboardUI === 'function') {
-                updateLeaderboardUI();
-            }
-
-            if (typeof restartGame === 'function' && sceneRef) {
+            if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
                 restartGame(sceneRef);
             }
         }
@@ -359,68 +209,8 @@
                 isNewRecord ? '🎉 NEW HIGH SCORE!' : 'Your rocket crashed...';
             document.getElementById('gameOverStats').innerHTML =
                 `Score: <strong>${score}</strong> | Best: <strong>${highScore}</strong>`;
-
-            // Show leaderboard entry if score > 0
-            if (score > 0) {
-                document.getElementById('leaderboardEntry').classList.remove('hidden');
-                document.getElementById('playerNameInput').value = localStorage.getItem('lastPlayerName') || '';
-            } else {
-                document.getElementById('leaderboardEntry').classList.add('hidden');
-            }
         };
 
-        // Leaderboard Saving
-        document.getElementById('saveScoreBtn').addEventListener('click', () => {
-            const nameInput = document.getElementById('playerNameInput');
-            const name = nameInput.value.trim().toUpperCase();
-
-            if (!name) {
-                nameInput.style.border = "1px solid red";
-                setTimeout(() => nameInput.style.border = "1px solid #00d4ff", 1000);
-                return;
-            }
-
-            localStorage.setItem('lastPlayerName', name);
-            if (typeof saveToLeaderboard === 'function') {
-                saveToLeaderboard(name);
-                document.getElementById('leaderboardEntry').classList.add('hidden');
-                // Show success feedback?
-                document.getElementById('gameOverMessage').textContent = "SCORE SAVED! 🚀";
-            }
-        });
-
-        window.updateLeaderboardUI = function (leaderboard) {
-            const list = document.getElementById('leaderboardList');
-            if (!list) return;
-
-            // Use provided data or fetch from localStorage
-            let data = leaderboard;
-            if (!data) {
-                try {
-                    const saved = localStorage.getItem('spaceRocketLeaderboard');
-                    data = saved ? JSON.parse(saved) : [];
-                } catch (e) {
-                    console.error("Failed to parse leaderboard from localStorage:", e);
-                    data = [];
-                }
-            }
-
-            if (!data || !Array.isArray(data) || data.length === 0) {
-                list.innerHTML = `<p class="no-badges">No records yet. Be the first!</p>`;
-                return;
-            }
-
-            list.innerHTML = data.map((entry, index) => `
-                <div class="leaderboard-item ${index < 3 ? 'top-rank' : ''}">
-                    <span class="rank-number">#${index + 1}</span>
-                    <span class="rank-name">${entry.name}</span>
-                    <span class="rank-score">${entry.score}</span>
-                </div>
-            `).join('');
-        };
-
-        // Initial leaderboard update
-        window.updateLeaderboardUI();
         // Dynamic Tagline based on High Score
         function updateTagline() {
             const score = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
@@ -451,9 +241,7 @@
 
         // Listen for updates from game
         window.updateBadgesUI = function () {
-            // Re-run tagline update in case score changed
             updateTagline();
-            // Also update badges if needed (existing logic might need merge if strict about function replacement)
         };
     </script>
 </body>

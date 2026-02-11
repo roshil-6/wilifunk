@@ -86,16 +86,6 @@ const COLORS = {
     NEBULA: 0x6b46c1
 };
 
-// ====================================
-// GLOBAL LEADERBOARD CONFIG (dreamlo.com)
-// ====================================
-const LEADERBOARD_CONFIG = {
-    // PUBLIC KEY
-    PUBLIC_URL: "https://www.dreamlo.com/lb/67ab19a38f40bb839446e01a",
-    // PRIVATE KEY
-    PRIVATE_URL: "https://www.dreamlo.com/lb/AUnO-059OkyR9W0C3A_uMg6uDIdvT1-Eqi5K7-0oXUwg"
-};
-
 // GAME STATE
 // ====================================
 let gameState = {
@@ -121,12 +111,10 @@ let gameState = {
     isInvincible: false,
     // Persistence
     unlockedBadges: [],
-    leaderboard: [],
     blackHoles: null,
     blackHoleTimer: null,
     meteorTimer: null,
-    lastSpawnX: 0,
-    playerName: ''
+    lastSpawnX: 0
 };
 
 let sceneRef;
@@ -142,46 +130,12 @@ let shieldEffect;
 function preload() {
     sceneRef = this;
 
-    // Load high score, badges, intensity & leaderboard
+    // Load high score, badges & intensity
     gameState.highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
     gameState.unlockedBadges = JSON.parse(localStorage.getItem('spaceRocketBadges') || '[]');
     gameState.intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
 
-    // Defensive leaderboard load
-    try {
-        const savedLeaderboard = localStorage.getItem('spaceRocketLeaderboard');
-        let rawLeaderboard = savedLeaderboard ? JSON.parse(savedLeaderboard) : [];
-        if (!Array.isArray(rawLeaderboard)) rawLeaderboard = [];
-
-        // Deduplication & Cleanup: Merge existing duplicates by name (keeping best score)
-        const cleanMap = new Map();
-        rawLeaderboard.forEach(entry => {
-            const name = entry.name.toUpperCase();
-            if (!cleanMap.has(name) || entry.score > cleanMap.get(name).score) {
-                cleanMap.set(name, entry);
-            }
-        });
-
-        gameState.leaderboard = Array.from(cleanMap.values())
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10);
-
-        // Persist the cleaned version if it changed
-        if (gameState.leaderboard.length !== rawLeaderboard.length) {
-            localStorage.setItem('spaceRocketLeaderboard', JSON.stringify(gameState.leaderboard));
-        }
-    } catch (e) {
-        console.error("Leaderboard load/cleanup failed:", e);
-        gameState.leaderboard = [];
-    }
-
-    // Load session name
-    gameState.playerName = localStorage.getItem('lastPlayerName') || '';
-
     updateHomeBadges();
-
-    // Initial fetch from global leaderboard
-    fetchGlobalLeaderboard();
 
     // Create rocket sprite
     createRocketTexture(this);
@@ -490,7 +444,6 @@ function create() {
     createSpaceBackground(this);
 
     // Create Biome Textures
-    // Create Biome Textures
     createGiantMarsTexture(this);
     createGiantMoonTexture(this);
 
@@ -504,14 +457,12 @@ function create() {
     // Create rocket
     createRocket(this);
 
-    // RESTORE COLLISION DETECTION
+    // COLLISION DETECTION
     this.physics.add.overlap(gameState.rocket, gameState.obstacles, onCollision, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.flyingObstacles, onCollision, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.ufos, onCollision, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.starItems, collectStar, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.blackHoles, (rocket, hole) => {
-        // Instant death on center contact or just heavy pull? 
-        // Let's make it instant death if too close
         onCollision(rocket, hole);
     }, null, this);
 
@@ -521,8 +472,6 @@ function create() {
     // Input handling
     this.input.on('pointerdown', thrust);
     this.input.keyboard.on('keydown-SPACE', thrust);
-
-    // ...
 
     function createRocket(scene, y = 300) {
         // Rocket sprite
@@ -536,29 +485,24 @@ function create() {
         // Disable gravity until game starts
         gameState.rocket.body.allowGravity = false;
 
-        // -- REALISTIC ENGINE EXHAUST (Particles) --
-        // We create an emitter manager directly
-        // Note: In Phaser 3.60, syntax is slightly different but this is standard
+        // Particle Emitter for Exhaust
         gameState.exhaust = scene.add.particles(0, 0, 'flare', {
             speed: { min: 100, max: 200 },
-            angle: { min: 170, max: 190 }, // Shoot backwards
+            angle: { min: 170, max: 190 },
             scale: { start: 1, end: 0 },
             alpha: { start: 1, end: 0 },
-            tint: [0x00d2ff, 0x0077ff, 0x0000ff], // Cyan -> Blue -> Dark Blue
+            tint: [0x00d2ff, 0x0077ff, 0x0000ff],
             lifespan: 300,
             blendMode: 'ADD',
             frequency: 10,
             quantity: 2,
             follow: gameState.rocket,
-            followOffset: { x: -25, y: 7 } // Position at rear of rocket
+            followOffset: { x: -25, y: 7 }
         });
-
-        // Twin engine offset (Second Emitter if desired, or just wider spread)
-        // We'll stick to one robust emitter for performance/clarity, centered between the twin engines.
 
         gameState.exhaust.setDepth(9);
 
-        // Shield Effect (Hidden by default)
+        // Shield Effect
         shieldEffect = scene.add.ellipse(0, 0, 60, 60, 0x00ffff, 0.3);
         shieldEffect.setStrokeStyle(2, 0x00ffff, 0.8);
         shieldEffect.setVisible(false);
@@ -596,7 +540,7 @@ function create() {
         });
         starText.setDepth(100);
 
-        // Badge Notification (Centered, hidden)
+        // Badge Notification
         badgeText = scene.add.text(400, 150, '', {
             fontSize: '32px',
             fontFamily: 'Impact',
@@ -639,7 +583,6 @@ function update() {
         if (remaining <= 0) {
             deactivateShield();
         } else if (remaining < 1500) {
-            // Flicker near end
             shieldEffect.setVisible(Math.floor(Date.now() / 100) % 2 === 0);
         }
     } else {
@@ -650,24 +593,14 @@ function update() {
     const velocityY = gameState.rocket.body.velocity.y;
     gameState.rocket.angle = Phaser.Math.Clamp(velocityY * 0.1, -30, 45);
 
-    // Update Emitter Angle to match Rocket
-    // Particles follow automatically, but we might want to rotate the emission angle
-    if (gameState.exhaust) {
-        // Emitter follows rocket, but we want particles to shoot opposite to flight
-        // Since rocket rotates, we might keep it simple or adjust slightly.
-        // For now, standard follow is good enough for a side-scroller.
-    }
-
-    // Check boundaries (only during active gameplay)
+    // Check boundaries
     if (gameState.isPlaying && !gameState.isGameOver) {
-        // Top: crash if fully off screen
-        // Bottom: crash with extra tolerance (160px below screen edge)
         if (gameState.rocket.y < -40 || gameState.rocket.y >= 760) {
             gameOver();
         }
     }
 
-    // Scroll stars (parallax)
+    // Scroll stars
     gameState.stars.forEach(star => {
         if (star.scrollSpeed) {
             star.x -= gameState.obstacleSpeed * star.scrollSpeed * 0.016;
@@ -677,19 +610,16 @@ function update() {
         }
     });
 
-    // Move lastSpawnX tracking
     gameState.lastSpawnX -= gameState.obstacleSpeed * 0.016;
 
-    // Check obstacle passing (scoring)
+    // Check obstacle passing
     gameState.obstacles.getChildren().forEach(obstacle => {
         if (!obstacle.scored && obstacle.x < gameState.rocket.x - 30) {
-            if (obstacle.isTop) { // Only score once per pair
+            if (obstacle.isTop) {
                 addScore(GAME.POINTS_PER_PASS);
             }
             obstacle.scored = true;
         }
-
-        // Remove off-screen obstacles
         if (obstacle.x < -100) {
             obstacle.destroy();
         }
@@ -698,13 +628,10 @@ function update() {
     // Update flying asteroids
     gameState.flyingObstacles.getChildren().forEach(asteroid => {
         asteroid.rotation += 0.02;
-
-        // Check for passing (scoring)
         if (!asteroid.scored && asteroid.x < gameState.rocket.x - 30) {
             addScore(GAME.POINTS_PER_PASS);
             asteroid.scored = true;
         }
-
         if (asteroid.x < -100) {
             asteroid.destroy();
         }
@@ -713,15 +640,12 @@ function update() {
     // Update UFOs
     gameState.ufos.getChildren().forEach(ufo => {
         if (ufo.isDummy) {
-            // Dummy: Fast Linear Movement
             ufo.x -= gameState.obstacleSpeed * 2.5 * 0.016;
         } else {
-            // Real: Sine Wave
             ufo.x -= gameState.obstacleSpeed * 1.2 * 0.016;
             ufo.sineOffset += 0.05;
             ufo.y = ufo.startY + Math.sin(ufo.sineOffset) * 100;
         }
-
         if (ufo.x < -100) ufo.destroy();
     });
 
@@ -730,12 +654,11 @@ function update() {
         if (star.x < -100) star.destroy();
     });
 
-    // Update Black Holes (Gravity Well)
+    // Update Black Holes
     gameState.blackHoles.getChildren().forEach(hole => {
         hole.x -= gameState.obstacleSpeed * 0.016;
-        hole.rotation -= 0.05; // Spin
+        hole.rotation -= 0.05;
 
-        // Visual Vortex Particles
         if (Math.random() > 0.5) {
             const angle = Math.random() * Math.PI * 2;
             const dist = Phaser.Math.Between(30, 60);
@@ -750,28 +673,22 @@ function update() {
             });
         }
 
-        // Initial push
-        hole.setVelocityX(-gameState.obstacleSpeed * 0.8); // Slower than obstacles
+        hole.setVelocityX(-gameState.obstacleSpeed * 0.8);
 
-        // Distance check for gravity
         const dx = hole.x - gameState.rocket.x;
         const dy = hole.y - gameState.rocket.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 350) { // Reduced range
-            const force = (350 - dist) * 0.08; // Weak pull
+        if (dist < 350) {
+            const force = (350 - dist) * 0.08;
             const angle = Math.atan2(dy, dx);
-            // ONLY PULL Y-AXIS to keep camera stable
-            // gameState.rocket.body.velocity.x += Math.cos(angle) * force; 
             gameState.rocket.body.velocity.y += Math.sin(angle) * force;
         }
 
-        // Event Horizon (Instant Kill)
         if (dist < 25) {
             gameOver();
         }
 
-        // Cleanup and Schedule Next
         if (hole.x < -100) {
             hole.destroy();
             scheduleNextBlackHole();
@@ -784,21 +701,14 @@ function update() {
 // ====================================
 function thrust() {
     if (gameState.isGameOver) return;
-
     if (!gameState.isPlaying) {
         startGame();
         return;
     }
-
-    // Apply upward thrust
     gameState.rocket.setVelocityY(GAME.THRUST_POWER);
-
-    // Thrust visual effect (Particle Boost)
     if (gameState.exhaust) {
         gameState.exhaust.emitParticle(5);
     }
-
-    // Small particle burst
     createThrustParticles();
 }
 
@@ -812,7 +722,6 @@ function createThrustParticles() {
             0.8
         );
         particle.setDepth(8);
-
         sceneRef.tweens.add({
             targets: particle,
             x: particle.x - 40,
@@ -829,14 +738,9 @@ function startGame() {
     gameState.isGameOver = false;
     gameState.score = 0;
 
-    // Intensity mapping
     const intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
     gameState.intensity = intensity;
 
-    // Map intensity to speed and spawn rate
-    // Range: 10 (Easy) to 50 (Extreme)
-    // Speed: 10 -> 160, 50 -> 400
-    // Spawn: 10 -> 3400, 50 -> 1000
     gameState.obstacleSpeed = 100 + (intensity * 6);
     gameState.spawnRate = 4000 - (intensity * 60);
 
@@ -846,644 +750,63 @@ function startGame() {
     starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
     starText.setColor('#ffd700');
 
-    // Enable gravity
     gameState.rocket.body.allowGravity = true;
     gameState.rocket.setVelocity(0, 0);
 
-    // Start obstacle spawning
     gameState.obstacleTimer = sceneRef.time.addEvent({
         delay: gameState.spawnRate,
         callback: spawnObstacle,
         loop: true
     });
 
-    // Start asteroid spawning (Frequent)
     gameState.asteroidTimer = sceneRef.time.addEvent({
         delay: 800,
         callback: spawnFlyingAsteroid,
         loop: true
     });
 
-    // Start UFO spawning (Less frequent - all dummy/harmless)
     gameState.ufoTimer = sceneRef.time.addEvent({
-        delay: 8000, // Every 8 seconds
+        delay: 8000,
         callback: spawnUFO,
         loop: true
     });
 
-    // Start Black Hole spawning (Frequent Traps with Breaks)
     scheduleNextBlackHole();
 
-    // Start Meteor Showers
     gameState.meteorTimer = sceneRef.time.addEvent({
-        delay: 20000, // Every 20s
+        delay: 20000,
         callback: triggerMeteorShower,
         loop: true
     });
 
-    // Start star spawning
     gameState.starTimer = sceneRef.time.addEvent({
         delay: 2000,
         callback: spawnStar,
         loop: true
     });
 
-    // Increase difficulty over time
     gameState.difficultyTimer = sceneRef.time.addEvent({
         delay: 5000,
         callback: increaseDifficulty,
         loop: true
     });
 
-    // Update UI
-    updateScore();
+    updateScoreDisplay();
 
-    // Hide home menu
     document.getElementById('homeMenu')?.classList.add('hidden');
     document.getElementById('gameUI')?.classList.remove('hidden');
 }
-
-
 
 // ====================================
 // COLLISION HANDLERS
 // ====================================
 function onCollision(rocket, obstacle) {
-    // Check if it's a dummy UFO - don't crash
-    if (obstacle.isDummy) {
-        return; // No crash for dummy UFOs
-    }
-
-    // Check if shield is active
-    if (gameState.hasShield) {
-        deactivateShield();
-        obstacle.destroy();
-        return;
-    }
-
-    // Otherwise, game over
-    gameOver();
-}
-
-function collectStar(rocket, star) {
-    // Collect the star (never causes crash)
-    star.destroy();
-
-    gameState.collectedStars++;
-    starText.setText('STARS: ' + gameState.collectedStars + '/' + GAME.STARS_FOR_SHIELD);
-
-    // Activate shield if enough stars
-    if (gameState.collectedStars >= GAME.STARS_FOR_SHIELD) {
-        activateShield();
-        gameState.collectedStars = 0;
-        starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
-    }
-
-    // Visual feedback
-    starText.setScale(1.3);
-    sceneRef.tweens.add({
-        targets: starText,
-        scale: 1,
-        duration: 200
-    });
-}
-
-// ====================================
-// SPAWNING
-// ====================================
-function spawnObstacle() {
-    if (gameState.isGameOver) return;
-
-    // Minimum distance check: ensure at least 300px between obstacle groups
-    if (gameState.lastSpawnX > sceneRef.scale.width - 300) {
-        return;
-    }
-
-    gameState.lastSpawnX = sceneRef.scale.width + 100;
-
-    // More random spawning: 60/40 between Canyon and Classic
-    // And sometimes skip one side for "irregular" placement
-    const type = Phaser.Math.Between(0, 100);
-    if (type > 40) {
-        spawnGiantCanyon();
-    } else {
-        spawnClassicPlanets();
-    }
-}
-
-function spawnClassicPlanets() {
-    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
-    const gapHeight = GAME.GAP_SIZE + Phaser.Math.Between(0, 50); // Varied gap
-    const spawnX = sceneRef.scale.width + 100;
-
-    // Irregular placement: 20% chance to only spawn one planet
-    const spawnBoth = Math.random() > 0.2;
-    const spawnTop = spawnBoth || Math.random() > 0.5;
-    const spawnBot = spawnBoth || !spawnTop;
-
-    // Top Planet
-    if (spawnTop) {
-        const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
-        const topOffset = Phaser.Math.Between(-50, 50);
-        const topPlanet = gameState.obstacles.create(spawnX + topOffset, gapY - 100, 'planet');
-        topPlanet.setOrigin(0.5, 0.5);
-        topPlanet.setScale(topScale);
-        topPlanet.body.setCircle(80 * topScale); // Reduced hitbox size for fairness
-        topPlanet.body.allowGravity = false;
-        topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-        topPlanet.body.setImmovable(true);
-        topPlanet.isTop = true;
-        topPlanet.scored = false;
-    }
-
-    // Bottom Planet
-    if (spawnBot) {
-        const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
-        const botOffset = Phaser.Math.Between(-50, 50);
-        const bottomPlanet = gameState.obstacles.create(spawnX + botOffset, gapY + gapHeight + 100, 'planet');
-        bottomPlanet.setOrigin(0.5, 0.5);
-        bottomPlanet.setScale(botScale);
-        bottomPlanet.body.setCircle(80 * botScale); // Reduced hitbox size
-        bottomPlanet.body.allowGravity = false;
-        bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
-        bottomPlanet.body.setImmovable(true);
-        bottomPlanet.scored = false;
-    }
-}
-
-function spawnGiantCanyon() {
-    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
-    const gapHeight = GAME.GAP_SIZE + 100; // Even wider base gap
-    const spawnX = sceneRef.scale.width + 300;
-
-    const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
-
-    // Irregular placement: 30% chance to only spawn one giant body
-    const spawnBoth = Math.random() > 0.3;
-    const spawnTop = spawnBoth || Math.random() > 0.5;
-    const spawnBot = spawnBoth || !spawnTop;
-
-    // Top Body
-    if (spawnTop) {
-        const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
-        const topX = spawnX + Phaser.Math.Between(-100, 100);
-        const topBody = gameState.obstacles.create(topX, gapY - 350, texture);
-        topBody.setOrigin(0.5, 0.5);
-        topBody.setScale(topScale);
-        topBody.body.setCircle(240 * topScale); // Reduced hitbox size (from 280)
-        topBody.body.allowGravity = false;
-        topBody.body.setVelocityX(-gameState.obstacleSpeed);
-        topBody.body.setImmovable(true);
-        topBody.isTop = true;
-        topBody.scored = false;
-    }
-
-    // Bottom Body
-    if (spawnBot) {
-        const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
-        const botX = spawnX + Phaser.Math.Between(-100, 100);
-        const bottomBody = gameState.obstacles.create(botX, gapY + gapHeight + 350, texture);
-        bottomBody.setOrigin(0.5, 0.5);
-        bottomBody.setScale(botScale);
-        bottomBody.body.setCircle(240 * botScale); // Reduced hitbox size
-        bottomBody.body.allowGravity = false;
-        bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
-        bottomBody.body.setImmovable(true);
-        bottomBody.scored = false;
-    }
-}
-
-function spawnFlyingAsteroid() {
-    if (gameState.isGameOver) return;
-
-    const y = Phaser.Math.Between(50, sceneRef.scale.height - 50);
-    const asteroid = gameState.flyingObstacles.create(sceneRef.scale.width + 100, y, 'asteroid');
-
-    asteroid.setOrigin(0.5, 0.5);
-    asteroid.body.allowGravity = false;
-    // Faster than normal obstacles
-    asteroid.body.setVelocityX(-(gameState.obstacleSpeed * 1.5));
-    asteroid.setDepth(6);
-    asteroid.scored = false;
-}
-
-function spawnUFO() {
-    if (gameState.isGameOver) return;
-
-    // Only spawn if score > 2 (Early game)
-    if (gameState.score < 2) return;
-
-    const y = Phaser.Math.Between(150, sceneRef.scale.height - 150);
-    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, y, 'ufo');
-
-    // Always dummy (harmless, fast moving)
-    ufo.isDummy = true;
-    ufo.setTint(0x888888); // Grey tint for dummy
-    ufo.body.allowGravity = false;
-    ufo.body.setVelocityX(-gameState.obstacleSpeed * 2.5);
-    ufo.setDepth(6);
-}
-
-
-function createBlackHoleTexture(scene) {
-    const gfx = scene.add.graphics();
-
-    // Event Horizon
-    gfx.fillStyle(0x000000, 1);
-    gfx.fillCircle(40, 40, 30);
-
-    // Accretion Disk (Swirl)
-    gfx.lineStyle(4, 0x8b5cf6, 0.8); // Purple
-    gfx.strokeCircle(40, 40, 35);
-    gfx.lineStyle(2, 0xec4899, 0.6); // Pink
-    gfx.strokeCircle(40, 40, 38);
-
-    gfx.generateTexture('blackhole', 80, 80);
-    gfx.destroy();
-}
-
-function scheduleNextBlackHole() {
-    if (gameState.isGameOver) return;
-
-    // Spawn after a break (e.g., 3-5 seconds)
-    sceneRef.time.delayedCall(Phaser.Math.Between(3000, 5000), spawnBlackHole);
-}
-
-function spawnBlackHole() {
-    if (gameState.isGameOver) return;
-    if (gameState.score < 5) {
-        scheduleNextBlackHole(); // Try again later
-        return;
-    }
-
-    // One by One rule (Should be redundant with scheduling, but safe to keep)
-    if (gameState.blackHoles.getLength() > 0) return;
-
-    const y = Phaser.Math.Between(100, sceneRef.scale.height - 100);
-    const hole = gameState.blackHoles.create(sceneRef.scale.width + 100, y, 'blackhole');
-
-    hole.setCircle(30, 10, 10);
-    hole.setOrigin(0.5, 0.5);
-    hole.body.allowGravity = false;
-    hole.setDepth(5);
-}
-
-
-
-function spawnStar() {
-    if (gameState.isGameOver) return;
-    // 30% chance to spawn a star each cycle
-    if (Phaser.Math.Between(0, 100) > 30) return;
-
-    const y = Phaser.Math.Between(100, sceneRef.scale.height - 100);
-    const star = gameState.starItems.create(sceneRef.scale.width + 100, y, 'starItem');
-    star.body.allowGravity = false;
-    star.body.setVelocityX(-gameState.obstacleSpeed);
-    star.setDepth(7);
-
-    // Spin animation
-    sceneRef.tweens.add({
-        targets: star,
-        angle: 360,
-        duration: 2000,
-        repeat: -1
-    });
-}
-
-function collectStar(rocket, star) {
-    star.destroy();
-
-    if (gameState.hasShield) return; // Already shielded
-
-    gameState.collectedStars++;
-    starText.setText(`STARS: ${gameState.collectedStars}/${GAME.STARS_FOR_SHIELD}`);
-
-    // Visual pop
-    sceneRef.tweens.add({
-        targets: starText,
-        scale: { from: 1.5, to: 1 },
-        duration: 200
-    });
-
-    if (gameState.collectedStars >= GAME.STARS_FOR_SHIELD) {
-        activateShield();
-    }
-}
-
-function activateShield() {
-    gameState.hasShield = true;
-    gameState.collectedStars = 0;
-    gameState.shieldEndTime = Date.now() + GAME.SHIELD_DURATION;
-
-    starText.setText('SHIELD ACTIVE!');
-    starText.setColor('#00ffff');
-
-    // Sound effect substitute (visual flash)
-    sceneRef.cameras.main.flash(200, 0, 255, 255);
-}
-
-function deactivateShield() {
-    gameState.hasShield = false;
-    starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
-    starText.setColor('#ffd700');
-}
-
-function increaseDifficulty() {
-    if (gameState.isGameOver) return;
-
-    // Difficulty multiplier
-    let multiplier = 1.0;
-    if (gameState.score < 20) {
-        multiplier = 0.5; // Slower ramping in early game
-    } else {
-        // Scaling with badges (e.g., 20% harder per badge)
-        multiplier = 1.0 + (gameState.unlockedBadges.length * 0.2);
-    }
-
-    // Increase speed
-    gameState.obstacleSpeed += GAME.SPEED_INCREASE * multiplier;
-
-    // Update existing obstacles
-    gameState.obstacles.getChildren().forEach(obstacle => {
-        obstacle.body.setVelocityX(-gameState.obstacleSpeed);
-    });
-
-    // Decrease spawn rate (more obstacles)
-    if (gameState.spawnRate > GAME.MIN_SPAWN_RATE) {
-        gameState.spawnRate -= GAME.SPAWN_DECREASE * multiplier;
-
-        // Restart timer with new rate
-        gameState.obstacleTimer.remove();
-        gameState.obstacleTimer = sceneRef.time.addEvent({
-            delay: gameState.spawnRate,
-            callback: spawnObstacle,
-            loop: true
-        });
-    }
-}
-
-function addScore(points) {
-    gameState.score += points;
-    updateScore();
-
-    // Pulse effect
-    sceneRef.tweens.add({
-        targets: scoreText,
-        scaleX: 1.2,
-        scaleY: 1.2,
-        duration: 100,
-        yoyo: true
-    });
-
-    // Ramping difficulty every 5 points
-    if (gameState.score > 0 && gameState.score % 5 === 0) {
-        increaseDifficulty();
-    }
-}
-
-// GLOBAL LEADERBOARD ACTIONS
-// ====================================
-async function fetchGlobalLeaderboard() {
-    console.log("Fetching global rankings from dreamlo...");
-    const syncText = document.getElementById('syncText');
-    if (syncText) syncText.textContent = "Syncing... 🛰️";
-
-    try {
-        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`, { cache: 'no-store' });
-        const rawText = await response.text();
-
-        if (!response.ok) {
-            console.error("Dreamlo Error Response:", rawText);
-            if (syncText) syncText.textContent = "API ERROR ❌ (Local Mode)";
-            loadLocalLeaderboard();
-            return;
-        }
-
-        try {
-            if (rawText.includes("ERROR:LeaderBoard not found")) {
-                console.error("Dreamlo Critical Error: Leaderboard ID is invalid. Falling back to local data.");
-                if (syncText) {
-                    syncText.textContent = "INVALID ID ❌ (Local Mode)";
-                    syncText.style.color = "#ff8800";
-                }
-                loadLocalLeaderboard();
-                return;
-            }
-
-            const data = JSON.parse(rawText);
-            if (data && data.dreamlo && data.dreamlo.leaderboard) {
-                const lb = data.dreamlo.leaderboard.entry;
-                const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
-
-                gameState.leaderboard = entries.map(e => ({
-                    name: e.name,
-                    score: parseInt(e.score),
-                    date: e.date
-                })).sort((a, b) => b.score - a.score).slice(0, 10);
-
-                if (syncText) {
-                    syncText.textContent = "LIVE ✅";
-                    syncText.style.color = "#00ff88";
-                }
-                updateLeaderboardUI();
-            } else {
-                gameState.leaderboard = [];
-                if (syncText) syncText.textContent = "LIVE ✅";
-                updateLeaderboardUI();
-            }
-        } catch (jsonErr) {
-            console.error("Invalid JSON from Dreamlo. Falling back to local data.");
-            if (syncText) {
-                syncText.textContent = "SERVER ERROR ❌ (Local Mode)";
-            }
-            loadLocalLeaderboard();
-        }
-    } catch (e) {
-        console.error("Global fetch failed. Falling back to local data.");
-        if (syncText) {
-            syncText.textContent = "NETWORK ERROR ❌ (Local Mode)";
-        }
-        loadLocalLeaderboard();
-    }
-}
-
-function loadLocalLeaderboard() {
-    console.log("Loading leaderboard from localStorage...");
-    const localData = localStorage.getItem('spaceRocketLeaderboard');
-    if (localData) {
-        try {
-            gameState.leaderboard = JSON.parse(localData);
-        } catch (e) {
-            gameState.leaderboard = [];
-        }
-    } else {
-        gameState.leaderboard = [];
-    }
-    updateLeaderboardUI();
-}
-
-async function saveToGlobalLeaderboard(name, score) {
-    if (!name || score === 0) return;
-
-    console.log(`Submitting global score for ${name}: ${score}`);
-    try {
-        // dreamlo format: PRIVATE_URL/add/NAME/SCORE
-        await fetch(`${LEADERBOARD_CONFIG.PRIVATE_URL}/add/${encodeURIComponent(name)}/${score}`, { cache: 'no-store' });
-        console.log("Global score submitted successfully.");
-        // Refresh after submission with small delay
-        setTimeout(() => fetchGlobalLeaderboard(), 1000);
-    } catch (e) {
-        console.error("Global score submission failed:", e.message);
-    }
-}
-
-function updateLeaderboardUI() {
-    console.log("Updating Leaderboard UI with data:", gameState.leaderboard);
-    if (typeof window.updateLeaderboardUI === 'function') {
-        window.updateLeaderboardUI(gameState.leaderboard || []);
-    }
-}
-
-// Global hook for index.html to set name
-window.setPlayerName = function (name) {
-    console.log("Setting player name to:", name);
-    gameState.playerName = name;
-};
-
-// Global hook for index.html to force refresh
-window.refreshLeaderboard = function () {
-    fetchGlobalLeaderboard();
-};
-
-function saveToLeaderboard(name) {
-    if (!name) {
-        console.warn("Attempted to save to leaderboard without a name.");
-        return;
-    }
-
-    console.log(`Processing score for ${name}: ${gameState.score}`);
-
-    // Check if leaderboard exists
-    if (!Array.isArray(gameState.leaderboard)) {
-        gameState.leaderboard = [];
-    }
-
-    // Deduplicate: Find existing entry for this name
-    const existingIndex = gameState.leaderboard.findIndex(e => e.name === name);
-
-    if (existingIndex !== -1) {
-        // Player exists, only update if new score is better
-        if (gameState.score > gameState.leaderboard[existingIndex].score) {
-            console.log(`New Personal Best for ${name}! Updating ${gameState.leaderboard[existingIndex].score} -> ${gameState.score}`);
-            gameState.leaderboard[existingIndex].score = gameState.score;
-            gameState.leaderboard[existingIndex].date = new Date().toLocaleDateString();
-            // Save globally
-            saveToGlobalLeaderboard(name, gameState.score);
-        } else {
-            console.log(`Score ${gameState.score} not higher than personal best ${gameState.leaderboard[existingIndex].score}. Skipping save.`);
-            return; // Don't bother saving or sorting if no change
-        }
-    } else {
-        // New player
-        console.log(`New entry for ${name} with score ${gameState.score}`);
-        gameState.leaderboard.push({
-            name: name,
-            score: gameState.score,
-            date: new Date().toLocaleDateString()
-        });
-        // Save globally
-        saveToGlobalLeaderboard(name, gameState.score);
-    }
-
-    // Sort and keep top 10
-    gameState.leaderboard.sort((a, b) => b.score - a.score);
-    gameState.leaderboard = gameState.leaderboard.slice(0, 10);
-
-    localStorage.setItem('spaceRocketLeaderboard', JSON.stringify(gameState.leaderboard));
-    console.log("Leaderboard successfully persisted to localStorage.");
-    updateLeaderboardUI();
-}
-
-function updateScore() {
-    scoreText.setText('SCORE: ' + gameState.score);
-
-    // Update high score if beaten
-    if (gameState.score > gameState.highScore) {
-        gameState.highScore = gameState.score;
-        highScoreText.setText('BEST: ' + gameState.highScore);
-        highScoreText.setColor('#00ff88');
-    }
-
-    // Check Badges
-    const badge = BADGES.find(b => b.score === gameState.score);
-    if (badge) {
-        // Check if already unlocked
-        const alreadyHas = gameState.unlockedBadges.find(b => b.name === badge.name);
-        if (!alreadyHas) {
-            gameState.unlockedBadges.push(badge);
-            localStorage.setItem('spaceRocketBadges', JSON.stringify(gameState.unlockedBadges));
-            showBadge(badge);
-            updateHomeBadges();
-        }
-    }
-}
-
-function updateHomeBadges() {
-    const container = document.getElementById('badgeContainer');
-    if (!container) return;
-
-    container.innerHTML = BADGES.map(b => {
-        const isUnlocked = gameState.unlockedBadges.find(ub => ub.name === b.name);
-        if (isUnlocked) {
-            return `
-            <div class="badge-item">
-                <span class="badge-icon">${b.icon}</span>
-                <div>${b.name}</div>
-            </div>`;
-        } else {
-            return `
-            <div class="badge-item locked" style="opacity: 0.5; filter: grayscale(1);">
-                <span class="badge-icon">🔒</span>
-                <div>${b.name}</div>
-                <div style="font-size: 10px; color: #888;">Score: ${b.score}</div>
-            </div>`;
-        }
-    }).join('');
-}
-
-function showBadge(badge) {
-    badgeText.setText(`${badge.icon}\n${badge.name}\nUNLOCKED!`);
-    badgeText.setAlpha(1);
-    badgeText.y = 150;
-
-    sceneRef.tweens.add({
-        targets: badgeText,
-        y: 100,
-        alpha: 0,
-        duration: 3000,
-        ease: 'Power2'
-    });
-}
-
-// ====================================
-// COLLISION & GAME OVER
-// ====================================
-function onCollision(rocket, obstacle) {
-    if (gameState.isGameOver) return;
-    if (gameState.isInvincible) return; // Ignore collisions during i-frames
-
-    // Check for Dummy UFO
-    if (obstacle.isDummy) {
-        return; // Pass through harmlessly
-    }
+    if (gameState.isGameOver || gameState.isInvincible || obstacle.isDummy) return;
 
     if (gameState.hasShield) {
-        // Shield saves the player
         gameState.hasShield = false;
-        gameState.shieldEndTime = 0; // Force end
+        gameState.shieldEndTime = 0;
         deactivateShield();
-
-        // Trigger post-hit invincibility
         gameState.isInvincible = true;
         sceneRef.tweens.add({
             targets: gameState.rocket,
@@ -1496,14 +819,10 @@ function onCollision(rocket, obstacle) {
                 gameState.isInvincible = false;
             }
         });
-
-        // Push rocket back slightly
         gameState.rocket.setVelocityX(-200);
         sceneRef.time.delayedCall(200, () => {
             if (!gameState.isGameOver) gameState.rocket.setVelocityX(0);
         });
-
-        // Screen shake
         sceneRef.cameras.main.shake(200, 0.01);
         return;
     }
@@ -1511,82 +830,275 @@ function onCollision(rocket, obstacle) {
     gameOver();
 }
 
+function collectStar(rocket, star) {
+    star.destroy();
+    if (gameState.hasShield) return;
+    gameState.collectedStars++;
+    starText.setText(`STARS: ${gameState.collectedStars}/${GAME.STARS_FOR_SHIELD}`);
+    sceneRef.tweens.add({
+        targets: starText,
+        scale: { from: 1.5, to: 1 },
+        duration: 200
+    });
+    if (gameState.collectedStars >= GAME.STARS_FOR_SHIELD) {
+        activateShield();
+    }
+}
+
+function activateShield() {
+    gameState.hasShield = true;
+    gameState.collectedStars = 0;
+    gameState.shieldEndTime = Date.now() + GAME.SHIELD_DURATION;
+    starText.setText('SHIELD ACTIVE!');
+    starText.setColor('#00ffff');
+    sceneRef.cameras.main.flash(200, 0, 255, 255);
+}
+
+function deactivateShield() {
+    gameState.hasShield = false;
+    starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
+    starText.setColor('#ffd700');
+}
+
+// ====================================
+// SPAWNING
+// ====================================
+function spawnObstacle() {
+    if (gameState.isGameOver || gameState.lastSpawnX > sceneRef.scale.width - 300) return;
+    gameState.lastSpawnX = sceneRef.scale.width + 100;
+    const type = Phaser.Math.Between(0, 100);
+    if (type > 40) {
+        spawnGiantCanyon();
+    } else {
+        spawnClassicPlanets();
+    }
+}
+
+function spawnClassicPlanets() {
+    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
+    const gapHeight = GAME.GAP_SIZE + Phaser.Math.Between(0, 50);
+    const spawnX = sceneRef.scale.width + 100;
+    const spawnBoth = Math.random() > 0.2;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const topPlanet = gameState.obstacles.create(spawnX + Phaser.Math.Between(-50, 50), gapY - 100, 'planet');
+        topPlanet.setScale(topScale);
+        topPlanet.body.setCircle(80 * topScale);
+        topPlanet.body.allowGravity = false;
+        topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        topPlanet.body.setImmovable(true);
+        topPlanet.isTop = true;
+        topPlanet.scored = false;
+    }
+
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const bottomPlanet = gameState.obstacles.create(spawnX + Phaser.Math.Between(-50, 50), gapY + gapHeight + 100, 'planet');
+        bottomPlanet.setScale(botScale);
+        bottomPlanet.body.setCircle(80 * botScale);
+        bottomPlanet.body.allowGravity = false;
+        bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomPlanet.body.setImmovable(true);
+        bottomPlanet.scored = false;
+    }
+}
+
+function spawnGiantCanyon() {
+    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
+    const gapHeight = GAME.GAP_SIZE + 100;
+    const spawnX = sceneRef.scale.width + 300;
+    const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
+    const spawnBoth = Math.random() > 0.3;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const topBody = gameState.obstacles.create(spawnX + Phaser.Math.Between(-100, 100), gapY - 350, texture);
+        topBody.setScale(topScale);
+        topBody.body.setCircle(240 * topScale);
+        topBody.body.allowGravity = false;
+        topBody.body.setVelocityX(-gameState.obstacleSpeed);
+        topBody.body.setImmovable(true);
+        topBody.isTop = true;
+        topBody.scored = false;
+    }
+
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const bottomBody = gameState.obstacles.create(spawnX + Phaser.Math.Between(-100, 100), gapY + gapHeight + 350, texture);
+        bottomBody.setScale(botScale);
+        bottomBody.body.setCircle(240 * botScale);
+        bottomBody.body.allowGravity = false;
+        bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomBody.body.setImmovable(true);
+        bottomBody.scored = false;
+    }
+}
+
+function spawnFlyingAsteroid() {
+    if (gameState.isGameOver) return;
+    const asteroid = gameState.flyingObstacles.create(sceneRef.scale.width + 100, Phaser.Math.Between(50, sceneRef.scale.height - 50), 'asteroid');
+    asteroid.body.allowGravity = false;
+    asteroid.body.setVelocityX(-(gameState.obstacleSpeed * 1.5));
+    asteroid.setDepth(6);
+    asteroid.scored = false;
+}
+
+function spawnUFO() {
+    if (gameState.isGameOver || gameState.score < 2) return;
+    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, Phaser.Math.Between(150, sceneRef.scale.height - 150), 'ufo');
+    ufo.isDummy = true;
+    ufo.setTint(0x888888);
+    ufo.body.allowGravity = false;
+    ufo.body.setVelocityX(-gameState.obstacleSpeed * 2.5);
+    ufo.setDepth(6);
+}
+
+function createBlackHoleTexture(scene) {
+    const gfx = scene.add.graphics();
+    gfx.fillStyle(0x000000, 1);
+    gfx.fillCircle(40, 40, 30);
+    gfx.lineStyle(4, 0x8b5cf6, 0.8);
+    gfx.strokeCircle(40, 40, 35);
+    gfx.lineStyle(2, 0xec4899, 0.6);
+    gfx.strokeCircle(40, 40, 38);
+    gfx.generateTexture('blackhole', 80, 80);
+    gfx.destroy();
+}
+
+function scheduleNextBlackHole() {
+    if (!gameState.isGameOver) sceneRef.time.delayedCall(Phaser.Math.Between(3000, 5000), spawnBlackHole);
+}
+
+function spawnBlackHole() {
+    if (gameState.isGameOver || gameState.score < 5 || gameState.blackHoles.getLength() > 0) {
+        if (!gameState.isGameOver) scheduleNextBlackHole();
+        return;
+    }
+    const hole = gameState.blackHoles.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'blackhole');
+    hole.setCircle(30, 10, 10);
+    hole.body.allowGravity = false;
+    hole.setDepth(5);
+}
+
+function spawnStar() {
+    if (gameState.isGameOver || Phaser.Math.Between(0, 100) > 30) return;
+    const star = gameState.starItems.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'starItem');
+    star.body.allowGravity = false;
+    star.body.setVelocityX(-gameState.obstacleSpeed);
+    star.setDepth(7);
+    sceneRef.tweens.add({ targets: star, angle: 360, duration: 2000, repeat: -1 });
+}
+
+// ====================================
+// DIFFICULTY & SCORING
+// ====================================
+function increaseDifficulty() {
+    if (gameState.isGameOver) return;
+    let multiplier = gameState.score < 20 ? 0.5 : 1.0 + (gameState.unlockedBadges.length * 0.2);
+    gameState.obstacleSpeed += GAME.SPEED_INCREASE * multiplier;
+    gameState.obstacles.getChildren().forEach(o => o.body.setVelocityX(-gameState.obstacleSpeed));
+
+    if (gameState.spawnRate > GAME.MIN_SPAWN_RATE) {
+        gameState.spawnRate -= GAME.SPAWN_DECREASE * multiplier;
+        gameState.obstacleTimer.remove();
+        gameState.obstacleTimer = sceneRef.time.addEvent({
+            delay: gameState.spawnRate,
+            callback: spawnObstacle,
+            loop: true
+        });
+    }
+}
+
+function addScore(points) {
+    gameState.score += points;
+    updateScoreDisplay();
+    sceneRef.tweens.add({ targets: scoreText, scaleX: 1.2, scaleY: 1.2, duration: 100, yoyo: true });
+    if (gameState.score > 0 && gameState.score % 5 === 0) increaseDifficulty();
+}
+
+function updateScoreDisplay() {
+    scoreText.setText('SCORE: ' + gameState.score);
+    if (gameState.score > gameState.highScore) {
+        gameState.highScore = gameState.score;
+        highScoreText.setText('BEST: ' + gameState.highScore);
+        highScoreText.setColor('#00ff88');
+    }
+    const badge = BADGES.find(b => b.score === gameState.score);
+    if (badge && !gameState.unlockedBadges.find(ub => ub.name === badge.name)) {
+        gameState.unlockedBadges.push(badge);
+        localStorage.setItem('spaceRocketBadges', JSON.stringify(gameState.unlockedBadges));
+        showBadge(badge);
+        updateHomeBadges();
+    }
+}
+
+function updateHomeBadges() {
+    const container = document.getElementById('badgeContainer');
+    if (!container) return;
+    container.innerHTML = BADGES.map(b => {
+        const isUnlocked = gameState.unlockedBadges.find(ub => ub.name === b.name);
+        return isUnlocked ?
+            `<div class="badge-item"><span class="badge-icon">${b.icon}</span><div>${b.name}</div></div>` :
+            `<div class="badge-item locked" style="opacity: 0.5; filter: grayscale(1);"><span class="badge-icon">🔒</span><div>${b.name}</div><div style="font-size: 10px; color: #888;">Score: ${b.score}</div></div>`;
+    }).join('');
+}
+
+function showBadge(badge) {
+    badgeText.setText(`${badge.icon}\n${badge.name}\nUNLOCKED!`);
+    badgeText.setAlpha(1);
+    sceneRef.tweens.add({ targets: badgeText, y: 100, alpha: 0, duration: 3000, ease: 'Power2' });
+}
+
+// ====================================
+// GAME OVER & RESET
+// ====================================
 function gameOver() {
     gameState.isGameOver = true;
     gameState.isPlaying = false;
 
-    // Auto-save to leaderboard if name is set
-    if (gameState.score > 0 && gameState.playerName) {
-        saveToLeaderboard(gameState.playerName);
-    }
-
-    // Stop timers
     if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
     if (gameState.asteroidTimer) gameState.asteroidTimer.remove();
     if (gameState.starTimer) gameState.starTimer.remove();
     if (gameState.difficultyTimer) gameState.difficultyTimer.remove();
 
-    // Stop rocket
     gameState.rocket.setVelocity(0, 0);
     gameState.rocket.body.allowGravity = false;
-
-    // Explosion effect
     createExplosion();
 
-    // Save high score
     localStorage.setItem('spaceRocketHighScore', gameState.highScore.toString());
-
-    // Camera shake
     sceneRef.cameras.main.shake(300, 0.02);
-
-    // Flash
     sceneRef.cameras.main.flash(200, 255, 100, 100);
 
-    // Show game over UI
     if (typeof window.showGameOver === 'function') {
         window.showGameOver(gameState.score, gameState.highScore);
-    }
-
-    // If we auto-saved, update the game over message or hide entry
-    if (gameState.playerName && gameState.score > 0) {
-        const entry = document.getElementById('leaderboardEntry');
-        if (entry) entry.classList.add('hidden');
     }
 }
 
 function createExplosion() {
-    const x = gameState.rocket.x;
-    const y = gameState.rocket.y;
-
-    // Hide rocket
+    const { x, y } = gameState.rocket;
     gameState.rocket.setVisible(false);
     if (gameState.exhaust) gameState.exhaust.setVisible(false);
-
-    // Explosion particles
     for (let i = 0; i < 20; i++) {
         const angle = (i / 20) * Math.PI * 2;
-        const speed = Phaser.Math.Between(50, 150);
-        const size = Phaser.Math.Between(3, 8);
         const color = Phaser.Math.RND.pick([0xff6600, 0xffff00, 0xff3366, 0xffffff]);
-
-        const particle = sceneRef.add.circle(x, y, size, color, 1);
-        particle.setDepth(50);
-
+        const p = sceneRef.add.circle(x, y, Phaser.Math.Between(3, 8), color, 1);
+        p.setDepth(50);
         sceneRef.tweens.add({
-            targets: particle,
-            x: x + Math.cos(angle) * speed,
-            y: y + Math.sin(angle) * speed,
-            alpha: 0,
-            scale: 0.2,
-            duration: 500,
-            ease: 'Power2',
-            onComplete: () => particle.destroy()
+            targets: p,
+            x: x + Math.cos(angle) * Phaser.Math.Between(50, 150),
+            y: y + Math.sin(angle) * Phaser.Math.Between(50, 150),
+            alpha: 0, scale: 0.2, duration: 500, ease: 'Power2',
+            onComplete: () => p.destroy()
         });
     }
 }
 
 function restartGame(scene) {
-    // Reset state
     gameState.isGameOver = false;
     gameState.isPlaying = false;
     gameState.score = 0;
@@ -1596,85 +1108,43 @@ function restartGame(scene) {
     gameState.hasShield = false;
     gameState.isInvincible = false;
 
-    // Clear obstacles
     gameState.obstacles.clear(true, true);
     gameState.flyingObstacles.clear(true, true);
     gameState.ufos.clear(true, true);
     gameState.starItems.clear(true, true);
     gameState.blackHoles.clear(true, true);
 
-    // Reset rocket
-    gameState.rocket.setPosition(150, 300);
-    gameState.rocket.setVelocity(0, 0);
-    gameState.rocket.setAngle(0);
-    gameState.rocket.setVisible(true);
+    gameState.rocket.setPosition(150, 300).setVelocity(0, 0).setAngle(0).setVisible(true);
     gameState.rocket.body.allowGravity = false;
-
-    // Reset flame
-    // Reset flame
     if (gameState.exhaust) gameState.exhaust.setVisible(true);
 
-    // Reset UI
-    updateScore();
+    updateScoreDisplay();
     highScoreText.setColor('#888888');
-    starText.setText('STARS: 0/3');
-    starText.setColor('#ffd700');
+    starText.setText('STARS: 0/3').setColor('#ffd700');
     badgeText.setAlpha(0);
     if (typeof meteorText !== 'undefined') meteorText.setVisible(false);
 
-    // Hide overlays
     document.getElementById('gameOverOverlay')?.classList.add('hidden');
     document.getElementById('winScreen')?.classList.add('hidden');
 }
 
-
 function triggerMeteorShower() {
-    if (gameState.isGameOver) return;
-    if (gameState.score < 10) return;
-
-    // Warning
+    if (gameState.isGameOver || gameState.score < 10) return;
     if (typeof meteorText !== 'undefined') {
-        meteorText.setVisible(true);
-        meteorText.setAlpha(1);
-
-        // Flash text
-        sceneRef.tweens.add({
-            targets: meteorText,
-            alpha: 0,
-            duration: 200,
-            yoyo: true,
-            repeat: 5,
-            onComplete: () => meteorText.setVisible(false)
-        });
+        meteorText.setVisible(true).setAlpha(1);
+        sceneRef.tweens.add({ targets: meteorText, alpha: 0, duration: 200, yoyo: true, repeat: 5, onComplete: () => meteorText.setVisible(false) });
     }
-
-    // Spawn Barrage
-    for (let i = 0; i < 15; i++) {
-        sceneRef.time.delayedCall(i * 200 + 1000, spawnMeteor);
-    }
+    for (let i = 0; i < 15; i++) sceneRef.time.delayedCall(i * 200 + 1000, spawnMeteor);
 }
 
 function spawnMeteor() {
     if (gameState.isGameOver) return;
-
-    const y = Phaser.Math.Between(0, 600);
-    const meteor = gameState.flyingObstacles.create(900, y, 'asteroid');
-
-    meteor.setScale(0.7); // Smaller
-    meteor.body.allowGravity = false;
-
-    // Angle trajectory slightly
+    const meteor = gameState.flyingObstacles.create(900, Phaser.Math.Between(0, 600), 'asteroid');
+    meteor.setScale(0.7).body.allowGravity = false;
     const angle = Phaser.Math.Between(160, 200) * (Math.PI / 180);
-    const speed = gameState.obstacleSpeed * 2.5; // Very fast
-
-    meteor.body.setVelocity(
-        Math.cos(angle) * speed,
-    );
+    meteor.body.setVelocity(Math.cos(angle) * gameState.obstacleSpeed * 2.5);
     meteor.setDepth(6);
     meteor.scored = false;
 }
 
-// ====================================
-// INITIALIZE GAME
-// ====================================
 const game = new Phaser.Game(config);
