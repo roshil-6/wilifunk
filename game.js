@@ -1246,13 +1246,17 @@ function addScore(points) {
 // ====================================
 async function fetchGlobalLeaderboard() {
     console.log("Fetching global rankings from dreamlo...");
+    const syncText = document.getElementById('syncText');
+    if (syncText) syncText.textContent = "Syncing... 🛰️";
+
     try {
-        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`);
+        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP Error! Status: ${response.status}`);
+
         const data = await response.json();
 
         if (data && data.dreamlo && data.dreamlo.leaderboard) {
             const lb = data.dreamlo.leaderboard.entry;
-            // Handle case where entry is a single object or an array
             const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
 
             gameState.leaderboard = entries.map(e => ({
@@ -1262,15 +1266,23 @@ async function fetchGlobalLeaderboard() {
             })).sort((a, b) => b.score - a.score).slice(0, 10);
 
             console.log("Global leaderboard sync complete:", gameState.leaderboard);
+            if (syncText) {
+                syncText.textContent = "LIVE ✅";
+                syncText.style.color = "#00ff88";
+            }
             updateLeaderboardUI();
         } else if (data && data.dreamlo && data.dreamlo.leaderboard === null) {
-            // Empty leaderboard
+            console.log("Leaderboard is empty on server.");
             gameState.leaderboard = [];
+            if (syncText) syncText.textContent = "LIVE (No Scores) ✅";
             updateLeaderboardUI();
         }
     } catch (e) {
-        console.error("Global leaderboard fetch failed:", e);
-        // Fallback to local if fetch fails
+        console.error("Global leaderboard fetch failed:", e.message);
+        if (syncText) {
+            syncText.textContent = "OFFLINE ❌";
+            syncText.style.color = "#ff3366";
+        }
         updateLeaderboardUI();
     }
 }
@@ -1281,12 +1293,12 @@ async function saveToGlobalLeaderboard(name, score) {
     console.log(`Submitting global score for ${name}: ${score}`);
     try {
         // dreamlo format: PRIVATE_URL/add/NAME/SCORE
-        await fetch(`${LEADERBOARD_CONFIG.PRIVATE_URL}/add/${encodeURIComponent(name)}/${score}`);
+        await fetch(`${LEADERBOARD_CONFIG.PRIVATE_URL}/add/${encodeURIComponent(name)}/${score}`, { cache: 'no-store' });
         console.log("Global score submitted successfully.");
-        // Refresh after submission
-        fetchGlobalLeaderboard();
+        // Refresh after submission with small delay
+        setTimeout(() => fetchGlobalLeaderboard(), 1000);
     } catch (e) {
-        console.error("Global score submission failed:", e);
+        console.error("Global score submission failed:", e.message);
     }
 }
 

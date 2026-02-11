@@ -62,11 +62,13 @@
                     <div class="rocket-icon">🚀</div>
                     <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
                     <div id="pilotDisplay" class="pilot-info"
-                        style="margin-bottom: 10px; color: #888; font-size: 14px; letter-spacing: 1px;">
+                        style="margin-bottom: 5px; color: #888; font-size: 14px; letter-spacing: 1px;">
                         PILOT: <span id="currentPilotName" style="color: #00d4ff; font-weight: bold;">---</span>
                         <a href="#" id="changePilotBtn"
-                            style="color: #ff3366; margin-left: 10px; font-size: 11px; text-decoration: underline;">CHANGE</a>
+                            style="color: #ff3366; margin-left: 10px; font-size: 11px; text-decoration: underline; cursor: pointer;">CHANGE</a>
                     </div>
+                    <div id="syncStatus" style="font-size: 10px; color: #444; margin-bottom: 15px;">🛰️ Status: <span
+                            id="syncText">Checking...</span></div>
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
                     <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
 
@@ -175,6 +177,14 @@
             updatePilotDisplay();
             triggerStartFlow();
         });
+
+        // Fail-safe Reset button
+        window.resetApp = function () {
+            if (confirm("Clear all data and reset pilot?")) {
+                localStorage.clear();
+                window.location.reload();
+            }
+        };
 
         // Initial update
         updatePilotDisplay();
