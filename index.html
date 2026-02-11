@@ -339,12 +339,24 @@
             const list = document.getElementById('leaderboardList');
             if (!list) return;
 
-            if (!leaderboard || !Array.isArray(leaderboard) || leaderboard.length === 0) {
+            // Use provided data or fetch from localStorage
+            let data = leaderboard;
+            if (!data) {
+                try {
+                    const saved = localStorage.getItem('spaceRocketLeaderboard');
+                    data = saved ? JSON.parse(saved) : [];
+                } catch (e) {
+                    console.error("Failed to parse leaderboard from localStorage:", e);
+                    data = [];
+                }
+            }
+
+            if (!data || !Array.isArray(data) || data.length === 0) {
                 list.innerHTML = `<p class="no-badges">No records yet. Be the first!</p>`;
                 return;
             }
 
-            list.innerHTML = leaderboard.map((entry, index) => `
+            list.innerHTML = data.map((entry, index) => `
                 <div class="leaderboard-item ${index < 3 ? 'top-rank' : ''}">
                     <span class="rank-number">#${index + 1}</span>
                     <span class="rank-name">${entry.name}</span>
@@ -352,6 +364,9 @@
                 </div>
             `).join('');
         };
+
+        // Initial leaderboard update
+        window.updateLeaderboardUI();
         // Dynamic Tagline based on High Score
         function updateTagline() {
             const score = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
