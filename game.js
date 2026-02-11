@@ -122,6 +122,7 @@ let scoreText;
 let highScoreText;
 let starText;
 let badgeText;
+let meteorText;
 let shieldEffect;
 
 // ====================================
@@ -469,6 +470,15 @@ function create() {
     // Create UI
     createUI(this);
 
+    // Listen for resize to reposition centering text
+    this.scale.on('resize', () => {
+        if (badgeText) badgeText.x = this.scale.width / 2;
+        if (meteorText) {
+            meteorText.x = this.scale.width / 2;
+            meteorText.setFontSize(Math.min(40, this.scale.width * 0.08));
+        }
+    });
+
     // Input handling
     this.input.on('pointerdown', thrust);
     this.input.keyboard.on('keydown-SPACE', thrust);
@@ -510,9 +520,12 @@ function create() {
     }
 
     function createUI(scene) {
+        const centerX = scene.scale.width / 2;
+        const mobileScale = Math.min(1, scene.scale.width / 800);
+
         // Score
         scoreText = scene.add.text(20, 20, 'SCORE: 0', {
-            fontSize: '28px',
+            fontSize: (28 * mobileScale) + 'px',
             fontFamily: 'Courier New',
             fontWeight: 'bold',
             color: '#00ffff',
@@ -524,7 +537,7 @@ function create() {
 
         // High score
         highScoreText = scene.add.text(20, 55, 'BEST: ' + gameState.highScore, {
-            fontSize: '16px',
+            fontSize: (16 * mobileScale) + 'px',
             fontFamily: 'Courier New',
             color: '#888888'
         });
@@ -533,7 +546,7 @@ function create() {
 
         // Star Count
         starText = scene.add.text(20, 80, 'STARS: 0/3', {
-            fontSize: '18px',
+            fontSize: (18 * mobileScale) + 'px',
             fontFamily: 'Courier New',
             color: '#ffd700',
             fontWeight: 'bold'
@@ -541,8 +554,8 @@ function create() {
         starText.setDepth(100);
 
         // Badge Notification
-        badgeText = scene.add.text(400, 150, '', {
-            fontSize: '32px',
+        badgeText = scene.add.text(centerX, 150, '', {
+            fontSize: Math.min(32, scene.scale.width * 0.06) + 'px',
             fontFamily: 'Impact',
             color: '#ffffff',
             stroke: '#000000',
@@ -554,8 +567,8 @@ function create() {
         badgeText.setAlpha(0);
 
         // Meteor Warning
-        meteorText = scene.add.text(400, 300, 'METEOR SHOWER DETECTED!', {
-            fontSize: '40px',
+        meteorText = scene.add.text(centerX, 300, 'METEOR SHOWER DETECTED!', {
+            fontSize: Math.min(40, scene.scale.width * 0.08) + 'px',
             fontFamily: 'Impact',
             color: '#ff0000',
             stroke: '#ffffff',
