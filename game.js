@@ -1243,7 +1243,6 @@ function addScore(points) {
 
 // GLOBAL LEADERBOARD ACTIONS
 // ====================================
-// FIXED SYNC
 async function fetchGlobalLeaderboard() {
     console.log("Fetching global rankings from dreamlo...");
     const syncText = document.getElementById('syncText');
@@ -1255,18 +1254,19 @@ async function fetchGlobalLeaderboard() {
 
         if (!response.ok) {
             console.error("Dreamlo Error Response:", rawText);
-            if (syncText) syncText.textContent = "API ERROR ❌";
+            if (syncText) syncText.textContent = "API ERROR ❌ (Local Mode)";
+            loadLocalLeaderboard();
             return;
         }
 
         try {
             if (rawText.includes("ERROR:LeaderBoard not found")) {
-                console.error("Dreamlo Critical Error: Leaderboard ID is invalid.");
+                console.error("Dreamlo Critical Error: Leaderboard ID is invalid. Falling back to local data.");
                 if (syncText) {
-                    syncText.textContent = "INVALID ID ❌";
-                    syncText.style.color = "#ff3366";
+                    syncText.textContent = "INVALID ID ❌ (Local Mode)";
+                    syncText.style.color = "#ff8800";
                 }
-                updateLeaderboardUI();
+                loadLocalLeaderboard();
                 return;
             }
 
@@ -1292,17 +1292,34 @@ async function fetchGlobalLeaderboard() {
                 updateLeaderboardUI();
             }
         } catch (jsonErr) {
-            console.error("Invalid JSON from Dreamlo:", rawText);
+            console.error("Invalid JSON from Dreamlo. Falling back to local data.");
             if (syncText) {
-                syncText.textContent = "SERVER ERROR ❌";
+                syncText.textContent = "SERVER ERROR ❌ (Local Mode)";
             }
-            updateLeaderboardUI();
+            loadLocalLeaderboard();
         }
     } catch (e) {
-        console.error("Global fetch failed:", e.message);
-        if (syncText) syncText.textContent = "NETWORK ERROR ❌";
-        updateLeaderboardUI();
+        console.error("Global fetch failed. Falling back to local data.");
+        if (syncText) {
+            syncText.textContent = "NETWORK ERROR ❌ (Local Mode)";
+        }
+        loadLocalLeaderboard();
     }
+}
+
+function loadLocalLeaderboard() {
+    console.log("Loading leaderboard from localStorage...");
+    const localData = localStorage.getItem('spaceRocketLeaderboard');
+    if (localData) {
+        try {
+            gameState.leaderboard = JSON.parse(localData);
+        } catch (e) {
+            gameState.leaderboard = [];
+        }
+    } else {
+        gameState.leaderboard = [];
+    }
+    updateLeaderboardUI();
 }
 
 async function saveToGlobalLeaderboard(name, score) {
