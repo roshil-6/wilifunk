@@ -87,6 +87,16 @@ const COLORS = {
 };
 
 // ====================================
+// GLOBAL LEADERBOARD CONFIG (dreamlo.com)
+// ====================================
+const LEADERBOARD_CONFIG = {
+    // PUBLIC KEY (Safe to share)
+    PUBLIC_URL: "https://www.dreamlo.com/lb/67ab19a38f40bb839446e01a",
+    // PRIVATE KEY (This allows writing and clearing scores - normally you'd keep this more secure, 
+    // but for this simple hobby project we'll include it. Users can technically clear the board if they find it.)
+    PRIVATE_URL: "https://www.dreamlo.com/lb/AUnO-059OkyR9W0C3A_uMg6uDIdvT1-Eqi5K7-0oXUwg"
+};
+
 // GAME STATE
 // ====================================
 let gameState = {
@@ -170,7 +180,9 @@ function preload() {
     gameState.playerName = localStorage.getItem('lastPlayerName') || '';
 
     updateHomeBadges();
-    updateLeaderboardUI();
+
+    // Initial fetch from global leaderboard
+    fetchGlobalLeaderboard();
 
     // Create rocket sprite
     createRocketTexture(this);
@@ -1230,6 +1242,54 @@ function addScore(points) {
     }
 }
 
+// GLOBAL LEADERBOARD ACTIONS
+// ====================================
+async function fetchGlobalLeaderboard() {
+    console.log("Fetching global rankings from dreamlo...");
+    try {
+        const response = await fetch(`${LEADERBOARD_CONFIG.PUBLIC_URL}/json`);
+        const data = await response.json();
+
+        if (data && data.dreamlo && data.dreamlo.leaderboard) {
+            const lb = data.dreamlo.leaderboard.entry;
+            // Handle case where entry is a single object or an array
+            const entries = Array.isArray(lb) ? lb : (lb ? [lb] : []);
+
+            gameState.leaderboard = entries.map(e => ({
+                name: e.name,
+                score: parseInt(e.score),
+                date: e.date
+            })).sort((a, b) => b.score - a.score).slice(0, 10);
+
+            console.log("Global leaderboard sync complete:", gameState.leaderboard);
+            updateLeaderboardUI();
+        } else if (data && data.dreamlo && data.dreamlo.leaderboard === null) {
+            // Empty leaderboard
+            gameState.leaderboard = [];
+            updateLeaderboardUI();
+        }
+    } catch (e) {
+        console.error("Global leaderboard fetch failed:", e);
+        // Fallback to local if fetch fails
+        updateLeaderboardUI();
+    }
+}
+
+async function saveToGlobalLeaderboard(name, score) {
+    if (!name || score === 0) return;
+
+    console.log(`Submitting global score for ${name}: ${score}`);
+    try {
+        // dreamlo format: PRIVATE_URL/add/NAME/SCORE
+        await fetch(`${LEADERBOARD_CONFIG.PRIVATE_URL}/add/${encodeURIComponent(name)}/${score}`);
+        console.log("Global score submitted successfully.");
+        // Refresh after submission
+        fetchGlobalLeaderboard();
+    } catch (e) {
+        console.error("Global score submission failed:", e);
+    }
+}
+
 function updateLeaderboardUI() {
     console.log("Updating Leaderboard UI with data:", gameState.leaderboard);
     if (typeof window.updateLeaderboardUI === 'function') {
@@ -1241,6 +1301,11 @@ function updateLeaderboardUI() {
 window.setPlayerName = function (name) {
     console.log("Setting player name to:", name);
     gameState.playerName = name;
+};
+
+// Global hook for index.html to force refresh
+window.refreshLeaderboard = function () {
+    fetchGlobalLeaderboard();
 };
 
 function saveToLeaderboard(name) {
@@ -1265,6 +1330,8 @@ function saveToLeaderboard(name) {
             console.log(`New Personal Best for ${name}! Updating ${gameState.leaderboard[existingIndex].score} -> ${gameState.score}`);
             gameState.leaderboard[existingIndex].score = gameState.score;
             gameState.leaderboard[existingIndex].date = new Date().toLocaleDateString();
+            // Save globally
+            saveToGlobalLeaderboard(name, gameState.score);
         } else {
             console.log(`Score ${gameState.score} not higher than personal best ${gameState.leaderboard[existingIndex].score}. Skipping save.`);
             return; // Don't bother saving or sorting if no change
@@ -1277,6 +1344,8 @@ function saveToLeaderboard(name) {
             score: gameState.score,
             date: new Date().toLocaleDateString()
         });
+        // Save globally
+        saveToGlobalLeaderboard(name, gameState.score);
     }
 
     // Sort and keep top 10

@@ -318,8 +318,10 @@
                 updateTagline();
             }
 
-            // Refresh leaderboard UI
-            if (typeof updateLeaderboardUI === 'function') {
+            // Refresh leaderboard UI (Global refresh)
+            if (typeof window.refreshLeaderboard === 'function') {
+                window.refreshLeaderboard();
+            } else if (typeof updateLeaderboardUI === 'function') {
                 updateLeaderboardUI();
             }
 
