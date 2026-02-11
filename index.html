@@ -287,6 +287,11 @@
                 updateTagline();
             }
 
+            // Refresh leaderboard UI
+            if (typeof updateLeaderboardUI === 'function') {
+                updateLeaderboardUI();
+            }
+
             if (typeof restartGame === 'function' && sceneRef) {
                 restartGame(sceneRef);
             }

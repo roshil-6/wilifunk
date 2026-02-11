@@ -1228,24 +1228,42 @@ function saveToLeaderboard(name) {
         return;
     }
 
-    console.log(`Saving score for ${name}: ${gameState.score}`);
+    console.log(`Processing score for ${name}: ${gameState.score}`);
 
     // Check if leaderboard exists
     if (!Array.isArray(gameState.leaderboard)) {
         gameState.leaderboard = [];
     }
 
-    gameState.leaderboard.push({
-        name: name,
-        score: gameState.score,
-        date: new Date().toLocaleDateString()
-    });
+    // Deduplicate: Find existing entry for this name
+    const existingIndex = gameState.leaderboard.findIndex(e => e.name === name);
+
+    if (existingIndex !== -1) {
+        // Player exists, only update if new score is better
+        if (gameState.score > gameState.leaderboard[existingIndex].score) {
+            console.log(`New Personal Best for ${name}! Updating ${gameState.leaderboard[existingIndex].score} -> ${gameState.score}`);
+            gameState.leaderboard[existingIndex].score = gameState.score;
+            gameState.leaderboard[existingIndex].date = new Date().toLocaleDateString();
+        } else {
+            console.log(`Score ${gameState.score} not higher than personal best ${gameState.leaderboard[existingIndex].score}. Skipping save.`);
+            return; // Don't bother saving or sorting if no change
+        }
+    } else {
+        // New player
+        console.log(`New entry for ${name} with score ${gameState.score}`);
+        gameState.leaderboard.push({
+            name: name,
+            score: gameState.score,
+            date: new Date().toLocaleDateString()
+        });
+    }
 
     // Sort and keep top 10
     gameState.leaderboard.sort((a, b) => b.score - a.score);
     gameState.leaderboard = gameState.leaderboard.slice(0, 10);
 
     localStorage.setItem('spaceRocketLeaderboard', JSON.stringify(gameState.leaderboard));
+    console.log("Leaderboard successfully persisted to localStorage.");
     updateLeaderboardUI();
 }
 
