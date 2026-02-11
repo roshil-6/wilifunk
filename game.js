@@ -1243,6 +1243,7 @@ function addScore(points) {
 
 // GLOBAL LEADERBOARD ACTIONS
 // ====================================
+// FIXED SYNC
 async function fetchGlobalLeaderboard() {
     console.log("Fetching global rankings from dreamlo...");
     const syncText = document.getElementById('syncText');
