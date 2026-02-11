@@ -91,9 +91,9 @@ const COLORS = {
 // ====================================
 const LEADERBOARD_CONFIG = {
     // PUBLIC KEY
-    PUBLIC_URL: "https://www.dreamlo.com/lb/67abae868f40bb839446e033",
+    PUBLIC_URL: "https://www.dreamlo.com/lb/67ab19a38f40bb839446e01a",
     // PRIVATE KEY
-    PRIVATE_URL: "https://www.dreamlo.com/lb/6R20kYitE0W2J2jKkK7y_w5X6vR3V280KSi969YtHt4A"
+    PRIVATE_URL: "https://www.dreamlo.com/lb/AUnO-059OkyR9W0C3A_uMg6uDIdvT1-Eqi5K7-0oXUwg"
 };
 
 // GAME STATE
@@ -1259,6 +1259,16 @@ async function fetchGlobalLeaderboard() {
         }
 
         try {
+            if (rawText.includes("ERROR:LeaderBoard not found")) {
+                console.error("Dreamlo Critical Error: Leaderboard ID is invalid.");
+                if (syncText) {
+                    syncText.textContent = "INVALID ID ❌";
+                    syncText.style.color = "#ff3366";
+                }
+                updateLeaderboardUI();
+                return;
+            }
+
             const data = JSON.parse(rawText);
             if (data && data.dreamlo && data.dreamlo.leaderboard) {
                 const lb = data.dreamlo.leaderboard.entry;
@@ -1282,7 +1292,9 @@ async function fetchGlobalLeaderboard() {
             }
         } catch (jsonErr) {
             console.error("Invalid JSON from Dreamlo:", rawText);
-            if (syncText) syncText.textContent = "SERVER ERROR ❌";
+            if (syncText) {
+                syncText.textContent = "SERVER ERROR ❌";
+            }
             updateLeaderboardUI();
         }
     } catch (e) {
