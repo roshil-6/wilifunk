@@ -16,6 +16,7 @@
         <!-- In-Game UI -->
         <div id="gameUI" class="hidden">
             <button id="pauseBtn" class="game-btn pause-btn" title="Menu">☰</button>
+            <button id="muteBtn" class="game-btn mute-btn" title="Toggle Sound">🔊</button>
         </div>
 
         <!-- Game Over Screen -->
@@ -114,6 +115,21 @@
         // Pause/Menu button
         document.getElementById('pauseBtn').addEventListener('click', () => {
             showHomeMenu();
+        });
+
+        // Mute button
+        const muteBtn = document.getElementById('muteBtn');
+        // Sync icon to saved state ASAP
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof AudioEngine !== 'undefined') {
+                muteBtn.textContent = AudioEngine.muted ? '🔇' : '🔊';
+            }
+        });
+        muteBtn.addEventListener('click', () => {
+            if (typeof AudioEngine !== 'undefined') {
+                const muted = AudioEngine.toggleMute();
+                muteBtn.textContent = muted ? '🔇' : '🔊';
+            }
         });
 
         // Intensity Handling

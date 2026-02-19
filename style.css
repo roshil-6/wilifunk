@@ -239,6 +239,13 @@ body {
     right: 15px;
 }
 
+.mute-btn {
+    position: absolute;
+    top: 63px;
+    right: 15px;
+    font-size: 16px;
+}
+
 /* ===== OVERLAYS ===== */
 .overlay {
     position: absolute;

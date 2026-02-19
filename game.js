@@ -72,6 +72,42 @@ const BADGES = [
 ];
 
 // ====================================
+// ZONE DEFINITIONS
+// ====================================
+const ZONES = [
+    {
+        minScore: 0, name: 'DEEP SPACE',
+        bgTop: 0x0a0a1a, bgBot: 0x1a0a2e, nebulaColor: 0x6b46c1,
+        asteroidRate: 800, ufoRate: 8000, bhMin: 3000, bhMax: 5000,
+        ambientPitch: 38, ambientMid: 110, label: '🌌 DEEP SPACE'
+    },
+    {
+        minScore: 50, name: 'ASTEROID BELT',
+        bgTop: 0x1a0808, bgBot: 0x2e0f0f, nebulaColor: 0x8b2020,
+        asteroidRate: 450, ufoRate: 6000, bhMin: 2000, bhMax: 4000,
+        ambientPitch: 45, ambientMid: 90, label: '☄️ ASTEROID BELT'
+    },
+    {
+        minScore: 100, name: 'NEBULA CLOUD',
+        bgTop: 0x0d0a2e, bgBot: 0x2a0a3e, nebulaColor: 0xec4899,
+        asteroidRate: 550, ufoRate: 3500, bhMin: 2000, bhMax: 3500,
+        ambientPitch: 34, ambientMid: 130, label: '💜 NEBULA CLOUD'
+    },
+    {
+        minScore: 150, name: 'SOLAR STORM',
+        bgTop: 0x1a0d00, bgBot: 0x2e1800, nebulaColor: 0xff6b00,
+        asteroidRate: 380, ufoRate: 3000, bhMin: 1500, bhMax: 2800,
+        ambientPitch: 55, ambientMid: 160, label: '🔥 SOLAR STORM'
+    },
+    {
+        minScore: 200, name: 'THE VOID',
+        bgTop: 0x000000, bgBot: 0x060210, nebulaColor: 0x1a0a2e,
+        asteroidRate: 300, ufoRate: 2000, bhMin: 1000, bhMax: 2000,
+        ambientPitch: 28, ambientMid: 80, label: '🕳️ THE VOID'
+    }
+];
+
+// ====================================
 // COLORS (Professional Space Theme)
 // ====================================
 const COLORS = {
@@ -85,6 +121,354 @@ const COLORS = {
     STAR: 0xffffff,
     NEBULA: 0x6b46c1
 };
+
+// ====================================
+// AUDIO ENGINE (Web Audio API - No Files)
+// ====================================
+const AudioEngine = {
+    ctx: null,
+    muted: false,
+
+    init() {
+        this.muted = localStorage.getItem('wilifunkMuted') === 'true';
+        // AudioContext created on first user gesture to satisfy browser policy
+    },
+
+    _getCtx() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+    },
+
+    toggleMute() {
+        this.muted = !this.muted;
+        localStorage.setItem('wilifunkMuted', this.muted);
+        return this.muted;
+    },
+
+    // Utility: play a single tone
+    _tone(freq, type, gainVal, duration, when = 0, fadeOut = true) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime + when;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(gainVal, now);
+        if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    },
+
+    // Utility: frequency sweep
+    _sweep(freqStart, freqEnd, type, gainVal, duration, when = 0) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime + when;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqStart, now);
+        osc.frequency.exponentialRampToValueAtTime(freqEnd, now + duration);
+        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    },
+
+    // 1. Thrust — punchy rocket burst (3 layers)
+    thrust() {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // Layer 1: Deep low thump (kick-like body)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1); gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(160, now);
+        osc1.frequency.exponentialRampToValueAtTime(55, now + 0.12);
+        gain1.gain.setValueAtTime(0.5, now);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        osc1.start(now); osc1.stop(now + 0.12);
+
+        // Layer 2: Mid whoosh sweep (thrust feel)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2); gain2.connect(ctx.destination);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(90, now);
+        osc2.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+        gain2.gain.setValueAtTime(0.18, now);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        osc2.start(now); osc2.stop(now + 0.1);
+
+        // Layer 3: High fizz (air burst sparkle)
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.connect(gain3); gain3.connect(ctx.destination);
+        osc3.type = 'triangle';
+        osc3.frequency.setValueAtTime(800, now + 0.02);
+        osc3.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+        gain3.gain.setValueAtTime(0.08, now + 0.02);
+        gain3.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        osc3.start(now + 0.02); osc3.stop(now + 0.1);
+    },
+
+    // 2. Star collect — bright ascending chime
+    starCollect() {
+        [523, 659, 784].forEach((f, i) => this._tone(f, 'sine', 0.15, 0.12, i * 0.07));
+    },
+
+    // 3. Shield activate — rising power-up fanfare
+    shieldActivate() {
+        this._sweep(300, 900, 'sine', 0.2, 0.3);
+        this._sweep(600, 1200, 'triangle', 0.1, 0.25, 0.1);
+        [1047, 1319, 1568].forEach((f, i) => this._tone(f, 'sine', 0.12, 0.15, 0.3 + i * 0.08));
+    },
+
+    // 4. Shield absorb hit — thuddy crunch then recovery ping
+    shieldHit() {
+        this._sweep(400, 80, 'sawtooth', 0.25, 0.15);
+        this._tone(880, 'sine', 0.12, 0.1, 0.2);
+    },
+
+    // 5. Explosion — noise burst (simulated with rapid random sawtooth)
+    explosion() {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const bufferSize = ctx.sampleRate * 0.6;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(1.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+        source.start();
+        // Low rumble
+        this._sweep(80, 20, 'sine', 0.3, 0.5);
+    },
+
+    // 6. Badge unlock — triumphant 3-note fanfare
+    badgeUnlock() {
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((f, i) => this._tone(f, 'triangle', 0.18, 0.2, i * 0.12));
+        this._tone(1047, 'sine', 0.1, 0.4, 0.5);
+    },
+
+    // 7. Black hole proximity rumble — deep pulsing tone
+    blackHoleRumble(intensity) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.frequency.value = 4;
+        lfoGain.gain.value = 15;
+        osc.frequency.value = 40 + intensity * 10;
+        osc.type = 'sawtooth';
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(intensity * 0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+        lfo.start(now); osc.start(now);
+        lfo.stop(now + 0.3); osc.stop(now + 0.3);
+    },
+
+    // 8. Meteor shower warning — descending siren
+    meteorWarning() {
+        for (let i = 0; i < 3; i++) {
+            this._sweep(1200, 600, 'sawtooth', 0.15, 0.4, i * 0.45);
+        }
+    },
+
+    // 9. Near-miss whoosh
+    nearMiss() {
+        this._sweep(600, 150, 'sine', 0.18, 0.15);
+    },
+
+    // ==== CONTINUOUS SOUNDS ====
+    // Nodes kept alive so we can stop them
+    _ambientNodes: null,
+    _engineNodes: null,
+
+    // 10. Calm space wind ambient (white noise + lowpass + slow LFO breathing)
+    startAmbient() {
+        if (this.muted || this._ambientNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // White noise buffer (2 seconds, looped)
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        // Lowpass filter — keeps only low, airy frequencies → removes harshness
+        const windFilter = ctx.createBiquadFilter();
+        windFilter.type = 'lowpass';
+        windFilter.frequency.value = 380;   // soft, muffled air
+        windFilter.Q.value = 0.8;
+
+        // Gain — fades in gently
+        const windGain = ctx.createGain();
+        windGain.gain.setValueAtTime(0, now);
+        windGain.gain.linearRampToValueAtTime(0.12, now + 3); // calm fade-in
+
+        // Very slow LFO — makes the wind "breathe" in and out (gusts)
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.1;   // one full breath every ~10 seconds
+        lfoGain.gain.value = 120;    // sweeps filter ±120 Hz
+        lfo.connect(lfoGain);
+        lfoGain.connect(windFilter.frequency);
+
+        noise.connect(windFilter);
+        windFilter.connect(windGain);
+        windGain.connect(ctx.destination);
+
+        noise.start(now);
+        lfo.start(now);
+
+        this._ambientNodes = { noise, windFilter, windGain, lfo };
+    },
+
+    stopAmbient() {
+        if (!this._ambientNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._ambientNodes;
+        n.windGain.gain.setValueAtTime(n.windGain.gain.value, now);
+        n.windGain.gain.linearRampToValueAtTime(0, now + 1.5);
+        // Stop nodes after fade
+        setTimeout(() => {
+            try { n.noise.stop(); } catch (e) { }
+            try { n.lfo.stop(); } catch (e) { }
+        }, 1600);
+        this._ambientNodes = null;
+    },
+
+    // 11. Rocket engine hum (continuous while playing)
+    startEngineHum() {
+        if (this.muted || this._engineNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // Core engine tone
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = 85;        // deep engine rumble pitch
+        filter.type = 'lowpass';
+        filter.frequency.value = 320;    // muffle high harmonics
+        filter.Q.value = 2;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.14, now + 1.2);  // gentle ramp-up
+        osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+        osc.start(now);
+
+        // Sub pulse (engine beat/throb)
+        const oscSub = ctx.createOscillator();
+        const lfoSub = ctx.createOscillator();
+        const lfoGainSub = ctx.createGain();
+        const gainSub = ctx.createGain();
+        oscSub.type = 'sine';
+        oscSub.frequency.value = 42;
+        lfoSub.type = 'sine';
+        lfoSub.frequency.value = 7;     // engine throb rate
+        lfoGainSub.gain.value = 0.06;
+        lfoSub.connect(lfoGainSub);
+        lfoGainSub.connect(gainSub.gain);
+        gainSub.gain.setValueAtTime(0, now);
+        gainSub.gain.linearRampToValueAtTime(0.1, now + 1.2);
+        oscSub.connect(gainSub); gainSub.connect(ctx.destination);
+        oscSub.start(now); lfoSub.start(now);
+
+        this._engineNodes = { osc, filter, gain, oscSub, gainSub, lfoSub };
+    },
+
+    // Briefly rev the engine on thrust
+    engineRev() {
+        if (!this._engineNodes || this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._engineNodes;
+        // Pitch kick up then settle
+        n.osc.frequency.cancelScheduledValues(now);
+        n.osc.frequency.setValueAtTime(n.osc.frequency.value, now);
+        n.osc.frequency.linearRampToValueAtTime(160, now + 0.06);
+        n.osc.frequency.linearRampToValueAtTime(85, now + 0.25);
+        // Volume swell
+        n.gain.gain.setValueAtTime(n.gain.gain.value, now);
+        n.gain.gain.linearRampToValueAtTime(0.28, now + 0.06);
+        n.gain.gain.linearRampToValueAtTime(0.14, now + 0.3);
+    },
+
+    stopEngineHum() {
+        if (!this._engineNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._engineNodes;
+        n.gain.gain.setValueAtTime(n.gain.gain.value, now);
+        n.gain.gain.linearRampToValueAtTime(0, now + 1.0);
+        n.gainSub.gain.setValueAtTime(n.gainSub.gain.value, now);
+        n.gainSub.gain.linearRampToValueAtTime(0, now + 1.0);
+        [n.osc, n.oscSub, n.lfoSub].forEach(o => o.stop(now + 1.1));
+        this._engineNodes = null;
+    },
+
+    // Shift ambient wind character per zone (gentler / more intense filter sweep)
+    shiftAmbient(zoneIndex) {
+        if (!this._ambientNodes || this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._ambientNodes;
+        // Zone-based filter cutoff targets (higher = breezier, lower = muffled/tense)
+        const filterTargets = [380, 320, 420, 280, 200];
+        const gainTargets = [0.12, 0.14, 0.10, 0.16, 0.08];
+        const lfoSpeeds = [0.1, 0.12, 0.08, 0.18, 0.06];
+        const target = filterTargets[zoneIndex] ?? 380;
+        const gainT = gainTargets[zoneIndex] ?? 0.12;
+        const lfoSpd = lfoSpeeds[zoneIndex] ?? 0.1;
+        n.windFilter.frequency.setValueAtTime(n.windFilter.frequency.value, now);
+        n.windFilter.frequency.linearRampToValueAtTime(target, now + 2.5);
+        n.windGain.gain.setValueAtTime(n.windGain.gain.value, now);
+        n.windGain.gain.linearRampToValueAtTime(gainT, now + 2.5);
+        n.lfo.frequency.setValueAtTime(n.lfo.frequency.value, now);
+        n.lfo.frequency.linearRampToValueAtTime(lfoSpd, now + 2.5);
+    }
+};
+
+// Initialize audio engine (sets mute state from localStorage)
+AudioEngine.init();
 
 // GAME STATE
 // ====================================
@@ -114,7 +498,9 @@ let gameState = {
     blackHoles: null,
     blackHoleTimer: null,
     meteorTimer: null,
-    lastSpawnX: 0
+    lastSpawnX: 0,
+    // Zones
+    currentZone: 0
 };
 
 let sceneRef;
@@ -124,6 +510,8 @@ let starText;
 let badgeText;
 let meteorText;
 let shieldEffect;
+let bgGraphics;      // Zone background — redrawn on zone change
+let zoneBannerText;  // Zone transition banner
 
 // ====================================
 // PRELOAD - Create Graphics
@@ -397,12 +785,13 @@ function createStarItemTexture(scene) {
 // ====================================
 
 function createSpaceBackground(scene) {
-    // Gradient background
-    const bg = scene.add.graphics();
-    bg.fillGradientStyle(0x0a0a1a, 0x0a0a1a, 0x1a0a2e, 0x1a0a2e, 1);
-    bg.fillRect(0, 0, scene.scale.width, scene.scale.height);
-    bg.setScrollFactor(0); // Fix to camera
-    bg.setDepth(-100);
+    // Gradient background — stored globally so zones can redraw it
+    bgGraphics = scene.add.graphics();
+    const zone = ZONES[gameState.currentZone];
+    bgGraphics.fillGradientStyle(zone.bgTop, zone.bgTop, zone.bgBot, zone.bgBot, 1);
+    bgGraphics.fillRect(0, 0, scene.scale.width, scene.scale.height);
+    bgGraphics.setScrollFactor(0);
+    bgGraphics.setDepth(-100);
 
     // Star layers (parallax)
     for (let layer = 0; layer < 3; layer++) {
@@ -435,7 +824,7 @@ function createSpaceBackground(scene) {
     }
 
     // Distant nebula
-    const nebula = scene.add.ellipse(600, 300, 300, 200, COLORS.NEBULA, 0.1);
+    const nebula = scene.add.ellipse(600, 300, 300, 200, zone.nebulaColor, 0.1);
     nebula.setDepth(-80);
     gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
 }
@@ -578,7 +967,84 @@ function create() {
         meteorText.setOrigin(0.5);
         meteorText.setDepth(200);
         meteorText.setVisible(false);
+
+        // Zone Banner
+        zoneBannerText = scene.add.text(centerX, scene.scale.height / 2 - 60, '', {
+            fontSize: Math.min(36, scene.scale.width * 0.065) + 'px',
+            fontFamily: 'Impact',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 5,
+            align: 'center'
+        });
+        zoneBannerText.setOrigin(0.5);
+        zoneBannerText.setDepth(250);
+        zoneBannerText.setAlpha(0);
     }
+}
+
+// ====================================
+// ZONE SYSTEM
+// ====================================
+function checkZone(score) {
+    // Find the highest zone whose minScore we've reached
+    let newZone = 0;
+    for (let i = ZONES.length - 1; i >= 0; i--) {
+        if (score >= ZONES[i].minScore) { newZone = i; break; }
+    }
+    if (newZone !== gameState.currentZone) {
+        gameState.currentZone = newZone;
+        transitionToZone(newZone);
+    }
+}
+
+function transitionToZone(index) {
+    const zone = ZONES[index];
+
+    // 1. Flash + redraw background
+    sceneRef.cameras.main.flash(300, 255, 255, 255, false);
+    if (bgGraphics) {
+        bgGraphics.clear();
+        bgGraphics.fillGradientStyle(zone.bgTop, zone.bgTop, zone.bgBot, zone.bgBot, 1);
+        bgGraphics.fillRect(0, 0, sceneRef.scale.width, sceneRef.scale.height);
+    }
+
+    // 2. Zone name banner — fly in and fade out
+    if (zoneBannerText) {
+        zoneBannerText.setText(zone.label);
+        zoneBannerText.setAlpha(1);
+        zoneBannerText.setScale(1.4);
+        zoneBannerText.y = sceneRef.scale.height / 2 - 60;
+        sceneRef.tweens.add({
+            targets: zoneBannerText,
+            alpha: 0,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 2500,
+            ease: 'Power2'
+        });
+    }
+
+    // 3. Adjust asteroid + UFO timers
+    if (gameState.asteroidTimer) {
+        gameState.asteroidTimer.remove();
+        gameState.asteroidTimer = sceneRef.time.addEvent({
+            delay: zone.asteroidRate,
+            callback: spawnFlyingAsteroid,
+            loop: true
+        });
+    }
+    if (gameState.ufoTimer) {
+        gameState.ufoTimer.remove();
+        gameState.ufoTimer = sceneRef.time.addEvent({
+            delay: zone.ufoRate,
+            callback: spawnUFO,
+            loop: true
+        });
+    }
+
+    // 4. Shift ambient audio
+    AudioEngine.shiftAmbient(index);
 }
 
 // ====================================
@@ -696,6 +1162,14 @@ function update() {
             const force = (350 - dist) * 0.08;
             const angle = Math.atan2(dy, dx);
             gameState.rocket.body.velocity.y += Math.sin(angle) * force;
+
+            // Audio: proximity rumble, throttled to avoid spam
+            const now = Date.now();
+            if (!hole._lastRumble || now - hole._lastRumble > 300) {
+                const intensity = Math.min(1, (350 - dist) / 350);
+                AudioEngine.blackHoleRumble(intensity);
+                hole._lastRumble = now;
+            }
         }
 
         if (dist < 25) {
@@ -718,6 +1192,8 @@ function thrust() {
         startGame();
         return;
     }
+    AudioEngine.thrust();
+    AudioEngine.engineRev();
     gameState.rocket.setVelocityY(GAME.THRUST_POWER);
     if (gameState.exhaust) {
         gameState.exhaust.emitParticle(5);
@@ -806,6 +1282,9 @@ function startGame() {
 
     updateScoreDisplay();
 
+    AudioEngine.startAmbient();
+    AudioEngine.startEngineHum();
+
     document.getElementById('homeMenu')?.classList.add('hidden');
     document.getElementById('gameUI')?.classList.remove('hidden');
 }
@@ -821,6 +1300,7 @@ function onCollision(rocket, obstacle) {
         gameState.shieldEndTime = 0;
         deactivateShield();
         gameState.isInvincible = true;
+        AudioEngine.shieldHit();
         sceneRef.tweens.add({
             targets: gameState.rocket,
             alpha: 0.5,
@@ -845,6 +1325,7 @@ function onCollision(rocket, obstacle) {
 
 function collectStar(rocket, star) {
     star.destroy();
+    AudioEngine.starCollect();
     if (gameState.hasShield) return;
     gameState.collectedStars++;
     starText.setText(`STARS: ${gameState.collectedStars}/${GAME.STARS_FOR_SHIELD}`);
@@ -864,6 +1345,7 @@ function activateShield() {
     gameState.shieldEndTime = Date.now() + GAME.SHIELD_DURATION;
     starText.setText('SHIELD ACTIVE!');
     starText.setColor('#00ffff');
+    AudioEngine.shieldActivate();
     sceneRef.cameras.main.flash(200, 0, 255, 255);
 }
 
@@ -1030,6 +1512,7 @@ function increaseDifficulty() {
 function addScore(points) {
     gameState.score += points;
     updateScoreDisplay();
+    checkZone(gameState.score);
     sceneRef.tweens.add({ targets: scoreText, scaleX: 1.2, scaleY: 1.2, duration: 100, yoyo: true });
     if (gameState.score > 0 && gameState.score % 5 === 0) increaseDifficulty();
 }
@@ -1064,6 +1547,7 @@ function updateHomeBadges() {
 function showBadge(badge) {
     badgeText.setText(`${badge.icon}\n${badge.name}\nUNLOCKED!`);
     badgeText.setAlpha(1);
+    AudioEngine.badgeUnlock();
     sceneRef.tweens.add({ targets: badgeText, y: 100, alpha: 0, duration: 3000, ease: 'Power2' });
 }
 
@@ -1081,6 +1565,9 @@ function gameOver() {
 
     gameState.rocket.setVelocity(0, 0);
     gameState.rocket.body.allowGravity = false;
+    AudioEngine.stopEngineHum();
+    AudioEngine.stopAmbient();
+    AudioEngine.explosion();
     createExplosion();
 
     localStorage.setItem('spaceRocketHighScore', gameState.highScore.toString());
@@ -1112,6 +1599,9 @@ function createExplosion() {
 }
 
 function restartGame(scene) {
+    AudioEngine.stopEngineHum();
+    AudioEngine.stopAmbient();
+
     gameState.isGameOver = false;
     gameState.isPlaying = false;
     gameState.score = 0;
@@ -1120,6 +1610,16 @@ function restartGame(scene) {
     gameState.collectedStars = 0;
     gameState.hasShield = false;
     gameState.isInvincible = false;
+    gameState.currentZone = 0;
+
+    // Reset background to Zone 1
+    if (bgGraphics) {
+        const zone0 = ZONES[0];
+        bgGraphics.clear();
+        bgGraphics.fillGradientStyle(zone0.bgTop, zone0.bgTop, zone0.bgBot, zone0.bgBot, 1);
+        bgGraphics.fillRect(0, 0, sceneRef.scale.width, sceneRef.scale.height);
+    }
+    if (zoneBannerText) zoneBannerText.setAlpha(0);
 
     gameState.obstacles.clear(true, true);
     gameState.flyingObstacles.clear(true, true);
@@ -1143,6 +1643,7 @@ function restartGame(scene) {
 
 function triggerMeteorShower() {
     if (gameState.isGameOver || gameState.score < 10) return;
+    AudioEngine.meteorWarning();
     if (typeof meteorText !== 'undefined') {
         meteorText.setVisible(true).setAlpha(1);
         sceneRef.tweens.add({ targets: meteorText, alpha: 0, duration: 200, yoyo: true, repeat: 5, onComplete: () => meteorText.setVisible(false) });
