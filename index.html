@@ -5,62 +5,91 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WILIFUNK SPACE ROCKET</title>
+    <meta name="description"
+        content="WILIFUNK Space Rocket - An addictive space survival game. Dodge obstacles, collect coins, unlock rockets!">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+        <!-- Loading Page: Honeypot Gaming startup -->
+        <div id="loadingPage" class="loading-screen">
+            <div class="loading-content">
+                <h1 class="honeypot-title">HONEYPOT GAMING</h1>
+                <div class="loading-bar-container">
+                    <div id="loadingFill" class="loading-bar-fill"></div>
+                </div>
+                <p class="loading-status">INITIALIZING COCKPIT TELEMETRY...</p>
+            </div>
+        </div>
+
     <div id="game-container">
-        <!-- Game Canvas -->
+        <div class="cockpit-overlay"></div>
         <div id="phaser-game"></div>
 
-        <!-- In-Game UI -->
+        <!-- In-Game Premium Cyber-HUD -->
         <div id="gameUI" class="hidden">
-            <button id="pauseBtn" class="game-btn pause-btn" title="Menu">☰</button>
-            <button id="muteBtn" class="game-btn mute-btn" title="Toggle Sound">🔊</button>
+            <!-- Cockpit vignette overlay for space theme immersion -->
+            
         </div>
 
         <!-- Game Over Screen -->
         <div id="gameOverOverlay" class="overlay hidden">
-            <div class="overlay-content">
+            <div class="game-over-content">
                 <div class="overlay-title game-over-title">CRASHED!</div>
-                <div class="overlay-message" id="gameOverMessage">Your rocket couldn't make it...</div>
+                <div class="game-over-zone" id="gameOverZone"></div>
+                <div class="overlay-message" id="gameOverMessage">Your rocket crashed...</div>
+                <div class="game-over-coins">
+                    <span class="coins-earned" id="coinsEarned">🪙 +0</span>
+                    <span class="coins-total" id="coinsTotal">Total: 0</span>
+                </div>
+                <div class="game-over-close" id="gameOverClose"></div>
                 <div class="overlay-stats" id="gameOverStats"></div>
-
-                <div class="overlay-buttons">
-                    <button id="restartBtn" class="menu-button primary">LAUNCH AGAIN</button>
-                    <button id="homeBtn" class="menu-button secondary">MENU</button>
+                <div class="mission-summary" id="missionSummary">
+                    <div class="mission-summary-title">MISSIONS</div>
+                    <div id="missionSummaryItems"></div>
+                </div>
+                <button id="shareBtn" class="share-btn" onclick="shareWhatsApp()">📱 SHARE ON WHATSAPP</button>
+                <div class="overlay-buttons" style="display: flex; gap: 12px; justify-content: center; margin-top: 10px;">
+                    <button id="restartBtn" class="arcade-btn restart-arcade">INSERT COIN (RETRY)</button>
+                    <button id="homeBtn" class="arcade-btn menu-arcade">MENU</button>
                 </div>
             </div>
         </div>
 
+        <!-- Rocket Select logic moved to Home Menu -->
         <!-- Home Menu -->
-        <div id="homeMenu" class="home-menu">
+        <div id="homeMenu" class="home-menu hidden">
             <div class="home-content">
-                <!-- Title Section -->
                 <div class="title-section">
-                    <div class="rocket-icon">🚀</div>
+                    <div class="rocket-icon">🛸</div>
                     <h1 class="game-title">WILIFUNK SPACE ROCKET</h1>
-
+                    <p class="home-coins" id="homeCoins">🪙 0</p>
+                    
                     <p class="tagline"><span id="taglineText">How far can you fly?</span></p>
-                    <p class="challenge-text">Average pilots crash within 10 obstacles.</p>
+                    <p class="challenge-text">Average players crash within 10 obstacles.</p>
 
                     <!-- Intensity Slider -->
-                    <div class="intensity-control" style="margin-top: 30px; margin-bottom: 20px;">
+                    <div class="intensity-control">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <span style="color: #888; font-size: 14px; letter-spacing: 2px;">INTENSITY</span>
-                            <span id="intensityValue"
-                                style="color: #00d4ff; font-weight: bold; font-size: 18px;">25</span>
+                            <span style="color: #888888; font-size: 8px; letter-spacing: 1px;">INTENSITY</span>
+                            <span id="intensityValue" style="color: #00ffff; font-weight: bold; font-size: 10px;">25</span>
                         </div>
-                        <input type="range" id="intensitySlider" min="10" max="50" value="25" class="intensity-slider">
+                        <input type="range" id="intensitySlider" min="10" max="50" value="25"
+                            class="intensity-slider">
                         <div id="intensityTagline" class="intensity-feedback">Steady as she goes.</div>
                     </div>
 
-                    <div class="action-buttons"
-                        style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
-                        <button id="mainStartBtn" class="start-button">🚀 LAUNCH</button>
+                    <div class="action-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <button id="rocketLaunchBtn" class="start-button">🚀 PLAY LEVEL</button>
+                    </div>
+
+                    <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                        <h3 style="color: #00ffff; font-size: 14px; margin-bottom: 5px; text-transform: uppercase;">UNLOCK NEW LEVELS</h3>
+                        <div class="rocket-grid" id="rocketGrid"></div>
                     </div>
                 </div>
-
+                
                 <!-- Rules Section -->
                 <div class="rules-section">
                     <h2 class="rules-title">CONTROLS</h2>
@@ -75,6 +104,7 @@
                     <div class="rules-tips">
                         <p>⚠️ Avoid the barriers</p>
                         <p>⭐ Collect 3 Stars = 🛡️ Shield (5s)</p>
+                        <p>🪙 Coins unlock new rockets</p>
                         <p>🕳️ Black Holes = ESCAPE or DIE</p>
                         <p>🏆 Beat your high score</p>
                     </div>
@@ -94,39 +124,158 @@
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script src="game.js"></script>
     <script>
-        // Menu Navigation
+        // DOM references
         const homeMenu = document.getElementById('homeMenu');
         const gameUI = document.getElementById('gameUI');
         const gameOverOverlay = document.getElementById('gameOverOverlay');
 
-        // Start Game Flow
-        const triggerStartFlow = () => {
-            console.log("Launching game...");
-            launchGame();
-        };
+        // Update home coins display
+        window.updateHomeCoins = function() {
+            const coins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const el = document.getElementById('homeCoins');
+            if (el) el.textContent = '🪙 ' + coins;
+            const rocketCoinsEl = document.getElementById('rocketCoins');
+            if (rocketCoinsEl) rocketCoinsEl.textContent = '🪙 ' + coins;
+        }
+        updateHomeCoins();
 
-        document.getElementById('mainStartBtn')?.addEventListener('click', triggerStartFlow);
+        // Rocket Selection Rendering
+        window.renderRocketGrid = function() {
+            const grid = document.getElementById('rocketGrid');
+            if (!grid || typeof ROCKETS === 'undefined') return;
+            const totalCoins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const unlockedRockets = JSON.parse(localStorage.getItem('wilifunkUnlockedRockets') || '["pioneer"]');
+            let selectedRocket = localStorage.getItem('wilifunkSelectedRocket');
+            if (!selectedRocket || selectedRocket === 'undefined' || selectedRocket === 'null') {
+                selectedRocket = 'pioneer';
+            }
+            const highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
 
-        function launchGame() {
-            if (homeMenu) homeMenu.classList.add('hidden');
-            if (gameUI) gameUI.classList.remove('hidden');
+            grid.innerHTML = ROCKETS.map(r => {
+                const isUnlocked = unlockedRockets.includes(r.id) ||
+                    (r.id === 'voidbreaker' && highScore >= 500);
+                const isSelected = r.id === selectedRocket;
+                const canBuy = r.cost > 0 && totalCoins >= r.cost && !isUnlocked;
+                const isVoidBreaker = r.id === 'voidbreaker';
+
+                let costText;
+                if (isUnlocked) {
+                    costText = `<span class="rocket-unlocked-badge">✓ UNLOCKED</span>`;
+                } else if (isVoidBreaker) {
+                    costText = `<span class="rocket-cost">🏆 Score ≥ 500</span>`;
+                } else {
+                    costText = `<span class="rocket-cost">🪙 ${r.cost}</span>`;
+                }
+
+                let actionBtn = '';
+                if (!isUnlocked && !isVoidBreaker && r.cost > 0) {
+                    actionBtn = `<button class="rocket-buy-btn" ${canBuy ? '' : 'disabled'} onclick="buyRocket('${r.id}')">BUY 🪙${r.cost}</button>`;
+                }
+
+                return `
+                    <div class="rocket-card ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}" 
+                         ${isUnlocked ? `onclick="selectRocket('${r.id}')"` : ''}
+                         id="rocket-card-${r.id}">
+                        <span class="rocket-emoji">${isUnlocked ? r.emoji : '🔒'}</span>
+                        <div class="rocket-name">${r.name}</div>
+                        <div class="rocket-desc">${r.description}</div>
+                        ${costText}
+                        ${actionBtn}
+                    </div>
+                `;
+            }).join('');
         }
 
+        // Initialize garage on home screen
+        renderRocketGrid();
+
+        // Select Rocket
+        window.selectRocket = function(id) {
+            localStorage.setItem('wilifunkSelectedRocket', id);
+            if (typeof gameState !== 'undefined') gameState.selectedRocket = id;
+            renderRocketGrid();
+            if (typeof window.refreshTheme === 'function') {
+                window.refreshTheme();
+            }
+        }
+
+        // Buy Rocket
+        window.buyRocket = function(id) {
+            const totalCoins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const rocket = typeof ROCKETS !== 'undefined' ? ROCKETS.find(r => r.id === id) : null;
+            if (!rocket || totalCoins < rocket.cost) return;
+
+            // Deduct coins
+            const newTotal = totalCoins - rocket.cost;
+            localStorage.setItem('wilifunkCoins', newTotal.toString());
+            if (typeof gameState !== 'undefined') gameState.totalCoins = newTotal;
+
+            // Unlock rocket
+            let unlocked = JSON.parse(localStorage.getItem('wilifunkUnlockedRockets') || '["pioneer"]');
+            if (!unlocked.includes(id)) {
+                unlocked.push(id);
+                localStorage.setItem('wilifunkUnlockedRockets', JSON.stringify(unlocked));
+                if (typeof gameState !== 'undefined') gameState.unlockedRockets = unlocked;
+            }
+
+            // Auto-select
+            selectRocket(id);
+            updateHomeCoins();
+            renderRocketGrid();
+
+            // Play sound
+            if (typeof AudioEngine !== 'undefined') AudioEngine.badgeUnlock();
+        }
+
+        // Game Mode state
+        window.selectedGameMode = 'rocket'; // default 'rocket' or 'streak'
+
+        // Honeypot Gaming Startup loading script
+        (function initLoading() {
+            const loadingPage = document.getElementById('loadingPage');
+            const loadingFill = document.getElementById('loadingFill');
+            const homeMenu = document.getElementById('homeMenu');
+            if (loadingFill) {
+                loadingFill.style.width = '100%';
+            }
+            setTimeout(() => {
+                if (loadingPage) {
+                    loadingPage.style.opacity = '0';
+                    loadingPage.style.transition = 'opacity 0.6s ease';
+                    setTimeout(() => {
+                        loadingPage.classList.add('hidden');
+                        if (homeMenu) homeMenu.classList.remove('hidden');
+                    }, 600);
+                } else {
+                    if (homeMenu) homeMenu.classList.remove('hidden');
+                }
+            }, 500); // reduced loading screen time to 500ms
+        })();
+
+        // Launch from main menu
+        document.getElementById('rocketLaunchBtn')?.addEventListener('click', () => {
+            homeMenu.classList.add('hidden');
+            gameUI.classList.remove('hidden');
+            // Notify Phaser of state start
+            if (typeof startGame === 'function') {
+                startGame();
+            }
+        });
+
         // Pause/Menu button
-        document.getElementById('pauseBtn').addEventListener('click', () => {
+        document.getElementById('pauseBtn')?.addEventListener('click', () => {
             showHomeMenu();
         });
 
         // Mute button
         const muteBtn = document.getElementById('muteBtn');
-        // Sync icon to saved state ASAP
         window.addEventListener('DOMContentLoaded', () => {
-            if (typeof AudioEngine !== 'undefined') {
+            if (typeof AudioEngine !== 'undefined' && muteBtn) {
                 muteBtn.textContent = AudioEngine.muted ? '🔇' : '🔊';
             }
         });
-        muteBtn.addEventListener('click', () => {
-            if (typeof AudioEngine !== 'undefined') {
+        muteBtn?.addEventListener('click', () => {
+            if (typeof AudioEngine !== 'undefined' && muteBtn) {
                 const muted = AudioEngine.toggleMute();
                 muteBtn.textContent = muted ? '🔇' : '🔊';
             }
@@ -136,8 +285,6 @@
         const intensitySlider = document.getElementById('intensitySlider');
         const intensityValue = document.getElementById('intensityValue');
         const intensityTagline = document.getElementById('intensityTagline');
-
-        // Load saved intensity
         const savedIntensity = localStorage.getItem('spaceRocketIntensity') || '25';
         intensitySlider.value = savedIntensity;
         intensityValue.textContent = savedIntensity;
@@ -151,45 +298,23 @@
 
         function updateIntensityFeedback(val) {
             let feedback = "";
-            let color = "#00d4ff";
-
+            let color = "#00ffff";
             if (val <= 20) {
-                const teases = [
-                    "Too scared of the void?",
-                    "Grandma mode activated.",
-                    "Safe and boring, huh?",
-                    "Training wheels on."
-                ];
+                const teases = ["Too scared of the void?", "Grandma mode activated.", "Safe and boring, huh?", "Training wheels on."];
                 feedback = teases[Math.floor(val / 5) % teases.length];
-                color = "#ffdd59";
+                color = "#ffd700";
             } else if (val < 40) {
                 feedback = "Steady as she goes.";
-                color = "#00d4ff";
+                color = "#00ffff";
             } else {
-                const apprec = [
-                    "NOW WE'RE TALKING!",
-                    "Absolute orbital madness.",
-                    "You've got titanium nerves!",
-                    "GLORY OR DEATH!"
-                ];
+                const apprec = ["NOW WE'RE TALKING!", "Absolute orbital madness.", "You've got titanium nerves!", "GLORY OR DEATH!"];
                 feedback = apprec[Math.floor((val - 40) / 3) % apprec.length];
                 color = "#ff3366";
             }
-
             intensityTagline.textContent = feedback;
             intensityTagline.style.color = color;
             intensityValue.style.color = color;
-
-            // Pulse effect
-            intensityValue.style.transition = "none";
-            intensityValue.style.transform = "scale(1.3)";
-            setTimeout(() => {
-                intensityValue.style.transition = "transform 0.2s ease";
-                intensityValue.style.transform = "scale(1)";
-            }, 50);
         }
-
-        // Init feedback
         updateIntensityFeedback(savedIntensity);
 
         // Restart button
@@ -197,6 +322,7 @@
             gameOverOverlay.classList.add('hidden');
             if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
                 restartGame(sceneRef);
+                if (typeof startGame === 'function') startGame();
             }
         });
 
@@ -207,58 +333,274 @@
             homeMenu.classList.remove('hidden');
             gameUI.classList.add('hidden');
             gameOverOverlay.classList.add('hidden');
-
-            if (typeof updateTagline === 'function') {
-                updateTagline();
-            }
-
+            updateHomeCoins();
+            if (typeof updateTagline === 'function') updateTagline();
             if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
                 restartGame(sceneRef);
             }
         }
 
-        // Expose function for game.js
-        window.showGameOver = function (score, highScore) {
+        // Enhanced Game Over Screen Display
+        window.showGameOver = function (data) {
             gameOverOverlay.classList.remove('hidden');
+
+            let score, highScore, coins, totalCoins, zone, missions;
+            if (typeof data === 'object') {
+                score = data.score;
+                highScore = data.highScore;
+                coins = data.coins || 0;
+                totalCoins = data.totalCoins || 0;
+                zone = data.zone;
+                missions = data.missions || [];
+            } else {
+                score = arguments[0];
+                highScore = arguments[1];
+                coins = 0;
+                totalCoins = 0;
+                zone = null;
+                missions = [];
+            }
+
             const isNewRecord = score >= highScore && score > 0;
+
+            // Zone display
+            const zoneEl = document.getElementById('gameOverZone');
+            if (zone && zoneEl) {
+                zoneEl.textContent = `REACHED: ${zone.label}`;
+                zoneEl.style.display = 'block';
+            } else if (zoneEl) {
+                zoneEl.style.display = 'none';
+            }
+
+            // Message
             document.getElementById('gameOverMessage').textContent =
-                isNewRecord ? '🎉 NEW HIGH SCORE!' : 'Your rocket crashed...';
+                isNewRecord ? 'NEW HIGH SCORE!' : 'Your rocket crashed...';
+
+            // Close call message
+            const closeEl = document.getElementById('gameOverClose');
+            if (closeEl) {
+                const diff = highScore - score;
+                if (diff > 0 && diff <= 5) {
+                    closeEl.textContent = `SO CLOSE — only ${diff} away from your best!`;
+                    closeEl.style.display = 'block';
+                } else {
+                    closeEl.style.display = 'none';
+                }
+            }
+
+            // Stats
             document.getElementById('gameOverStats').innerHTML =
                 `Score: <strong>${score}</strong> | Best: <strong>${highScore}</strong>`;
+
+            // Coins
+            document.getElementById('coinsEarned').textContent = `🪙 +${coins}`;
+            document.getElementById('coinsTotal').textContent = `Total: ${totalCoins}`;
+
+            // Mission summary
+            const missionItems = document.getElementById('missionSummaryItems');
+            if (missionItems && missions.length > 0) {
+                missionItems.innerHTML = missions.map(m => {
+                    const progress = Math.min(m.progress, m.target);
+                    const isComplete = m.completed;
+                    return `<div class="mission-summary-item ${isComplete ? 'completed' : ''}">
+                        <span>${m.icon} ${m.description}</span>
+                        <span>${isComplete ? '✓' : `${progress}/${m.target}`}</span>
+                    </div>`;
+                }).join('');
+                document.getElementById('missionSummary').style.display = 'block';
+            } else if (document.getElementById('missionSummary')) {
+                document.getElementById('missionSummary').style.display = 'none';
+            }
         };
 
-        // Dynamic Tagline based on High Score
+        // WhatsApp share
+        function shareWhatsApp() {
+            const score = typeof gameState !== 'undefined' ? gameState.score : 0;
+            const text = encodeURIComponent(`I scored ${score} in WILIFUNK Space Rocket! 🚀 Can you beat me? wilifunkgame.xyz`);
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+        }
+
+        // Dynamic Tagline
         function updateTagline() {
             const score = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
             const tagElement = document.getElementById('taglineText');
-
             let text = "";
-
-            if (score < 20) {
-                text = "Your high score is a joke in 3 galaxies.";
-            } else if (score < 50) {
-                text = "Double digits? Someone's trying hard.";
-            } else if (score < 100) {
-                text = "Not terrible. But my cat could do better.";
-            } else if (score < 200) {
-                text = "Finally, a pilot who knows up from down.";
-            } else if (score < 500) {
-                text = "Okay, you're actually dangerous now.";
-            } else {
-                text = "The Universe touches its hat to you.";
-            }
-
+            if (score < 20) text = "Your high score is a joke in 3 galaxies.";
+            else if (score < 50) text = "Double digits? Someone's trying hard.";
+            else if (score < 100) text = "Not terrible. But my cat could do better.";
+            else if (score < 200) text = "Finally, a pilot who knows up from down.";
+            else if (score < 500) text = "Okay, you're actually dangerous now.";
+            else text = "The Universe touches its hat to you.";
             tagElement.textContent = text;
             tagElement.style.opacity = 1;
         }
-
-        // Run on load
         updateTagline();
 
-        // Listen for updates from game
         window.updateBadgesUI = function () {
             updateTagline();
+            updateHomeCoins();
         };
+
+        // =======================================================
+        // INTERCEPTING & OVERRIDING DOMELEMENT UPDATES FROM game.js
+        // =======================================================
+        window.ensureHUDElements = function() {
+            // HUD layout is statically defined in index.html to prevent clean slate overrides.
+        };
+
+        window.updateHUDScore = function(score, highScore) {
+            const scoreEl = document.getElementById('hud-score');
+            const highScoreEl = document.getElementById('hud-high-score');
+            if (scoreEl) scoreEl.textContent = 'SCORE: ' + score;
+            if (highScoreEl) highScoreEl.textContent = 'BEST: ' + highScore;
+        };
+
+        window.updateHUDCoins = function(totalCoins, earnedCoins) {
+            const coinsEl = document.getElementById('hud-coins');
+            if (coinsEl) {
+                coinsEl.textContent = '🪙 ' + totalCoins;
+                coinsEl.classList.add('coin-bounce');
+                setTimeout(() => coinsEl.classList.remove('coin-bounce'), 300);
+            }
+        };
+
+        window.updateHUDShield = function(count, target, active) {
+            const shieldBar = document.getElementById('shield-bar-fill');
+            const shieldText = document.getElementById('hud-shield-text');
+            const shieldPanel = document.getElementById('hud-shield-panel');
+            if (!shieldBar || !shieldText) return;
+            
+            if (active) {
+                shieldBar.style.width = '100%';
+                shieldBar.className = 'shield-progress-fill active';
+                shieldText.textContent = 'SHIELD ACTIVE';
+            } else {
+                const pct = (count / target) * 100;
+                shieldBar.style.width = pct + '%';
+                shieldBar.className = 'shield-progress-fill';
+                shieldText.textContent = `STARS: ${count}/${target}`;
+            }
+        };
+
+        window.updateHUDMissions = function(activeMissions) {
+            for (let i = 0; i < 3; i++) {
+                const missionEl = document.getElementById('hud-mission-' + i);
+                if (!missionEl) continue;
+                const mission = activeMissions[i];
+                if (mission) {
+                    const progress = Math.min(mission.progress, mission.target);
+                    const pct = Math.floor((progress / mission.target) * 100);
+                    const statusClass = mission.completed ? 'completed' : '';
+                    
+                    missionEl.innerHTML = `
+                        <div class="hud-mission-item ${statusClass}">
+                            <div class="hud-mission-header">
+                                <span class="hud-mission-desc">${mission.icon} ${mission.description}</span>
+                                <span class="hud-mission-progress-text">${progress}/${mission.target}</span>
+                            </div>
+                            <div class="hud-mission-bar">
+                                <div class="hud-mission-fill" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    missionEl.innerHTML = '';
+                }
+            }
+        };
+
+        window.triggerHUDWarning = function(message, active) {
+            const warningEl = document.getElementById('hud-warning-container');
+            const warningMsg = document.getElementById('warning-msg');
+            if (!warningEl || !warningMsg) return;
+            
+            if (active) {
+                warningMsg.textContent = message;
+                warningEl.classList.add('active');
+            } else {
+                warningEl.classList.remove('active');
+            }
+        };
+
+        window.triggerHUDZone = function(zoneLabel) {
+            const zoneEl = document.getElementById('hud-zone-container');
+            const zoneMsg = document.getElementById('zone-msg');
+            if (!zoneEl || !zoneMsg) return;
+            
+            zoneMsg.textContent = zoneLabel;
+            zoneEl.classList.add('active');
+            
+            setTimeout(() => {
+                zoneEl.classList.remove('active');
+            }, 2500);
+        };
+
+        // Dynamic Cockpit Dashboard instrumentation loop
+        window.thermalTemp = 20;
+        function updateCockpitDashboard() {
+            requestAnimationFrame(updateCockpitDashboard);
+            const dashboard = document.getElementById('cockpit-dashboard');
+            if (!dashboard) return;
+            
+            if (!window.gameState || !window.gameState.isPlaying || window.gameState.isGameOver) {
+                dashboard.style.opacity = '0.4';
+                return;
+            }
+            dashboard.style.opacity = '1';
+
+            // 1. SPEEDOMETER: simulated from obstacle speed & physics velocity
+            let baseSpeed = window.gameState.obstacleSpeed || 100;
+            let yVel = (window.gameState.rocket && window.gameState.rocket.body) ? Math.abs(window.gameState.rocket.body.velocity.y) : 0;
+            let speed = Math.floor(baseSpeed + yVel * 0.15);
+            const speedValEl = document.getElementById('hud-speed-val');
+            if (speedValEl) speedValEl.textContent = speed;
+
+            // 2. ALTIMETER: simulated from rocket position & score distance
+            let rockY = (window.gameState.rocket) ? window.gameState.rocket.y : 300;
+            let baseAlt = Math.floor((760 - rockY) * 2.2);
+            let scoreBonus = (window.gameState.score || 0) * 12;
+            let altitude = Math.max(0, baseAlt + scoreBonus);
+            const altValEl = document.getElementById('hud-alt-val');
+            if (altValEl) altValEl.textContent = altitude.toLocaleString() + 'm';
+
+            // 3. THERMAL TEMP CORE: Rises with thrust (negative velocity.y) and cools down slowly
+            if (window.gameState.rocket && window.gameState.rocket.body) {
+                let isThrusting = window.gameState.rocket.body.velocity.y < -50;
+                if (isThrusting) {
+                    window.thermalTemp = Math.min(100, window.thermalTemp + 1.6);
+                } else {
+                    window.thermalTemp = Math.max(20, window.thermalTemp - 0.5);
+                }
+            } else {
+                window.thermalTemp = 20;
+            }
+
+            const thermalFill = document.getElementById('hud-thermal-fill');
+            if (thermalFill) {
+                thermalFill.style.width = window.thermalTemp + '%';
+                if (window.thermalTemp > 75) {
+                    thermalFill.style.background = 'linear-gradient(90deg, #ff3366, #ff0000)';
+                    thermalFill.style.boxShadow = '0 0 12px rgba(255, 51, 102, 0.8)';
+                } else if (window.thermalTemp > 50) {
+                    thermalFill.style.background = 'linear-gradient(90deg, #ff7800, #ff3366)';
+                    thermalFill.style.boxShadow = '0 0 10px rgba(255, 120, 0, 0.6)';
+                } else {
+                    thermalFill.style.background = 'linear-gradient(90deg, #00d4ff, #00ffff)';
+                    thermalFill.style.boxShadow = '0 0 8px rgba(0, 212, 255, 0.5)';
+                }
+            }
+
+            // 4. OVERHEAT ALERT INDICATOR PANEL
+            const overheatPanel = document.getElementById('hud-overheat-panel');
+            if (overheatPanel) {
+                if (window.thermalTemp > 75) {
+                    overheatPanel.classList.add('alert-active');
+                } else {
+                    overheatPanel.classList.remove('alert-active');
+                }
+            }
+        }
+        updateCockpitDashboard();
     </script>
 </body>
 
