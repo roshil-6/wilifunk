@@ -1428,7 +1428,7 @@ function startGame() {
 
     gameState.obstacleTimer = sceneRef.time.addEvent({ delay: gameState.spawnRate, callback: spawnObstacle, loop: true });
     gameState.asteroidTimer = sceneRef.time.addEvent({ delay: 800, callback: spawnFlyingAsteroid, loop: true });
-    gameState.ufoTimer = sceneRef.time.addEvent({ delay: 8000, callback: spawnUFO, loop: true });
+    // gameState.ufoTimer = sceneRef.time.addEvent({ delay: 8000, callback: spawnUFO, loop: true }); // Disabled per user request
     
     scheduleNextBlackHole();
 
@@ -1590,15 +1590,7 @@ function spawnObstacle() {
     }
 
 
-    // Add floating up and down movement
-    sceneRef.tweens.add({
-        targets: [topObs, botObs],
-        y: (target) => target.y + Phaser.Math.Between(-30, 30) - (difficultyMultiplier * 10),
-        duration: 1000 - (difficultyMultiplier * 50),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
+    // Removed vertical floating to preserve exact gap alignment
 }
 function spawnFlyingAsteroid() {
     if (gameState.isGameOver || gameState.score < 5) return;
