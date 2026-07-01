@@ -191,9 +191,10 @@ const AudioEngine = {
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
+        if (type === 'sawtooth' || type === 'square') type = 'triangle';
         osc.type = type;
         osc.frequency.setValueAtTime(freq, now);
-        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.setValueAtTime(gainVal * 0.5, now); // 50% reduction in volume
         if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
         osc.start(now);
         osc.stop(now + duration);
@@ -207,10 +208,12 @@ const AudioEngine = {
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
+        // Soften harsh waves
+        if (type === 'sawtooth' || type === 'square') type = 'triangle';
         osc.type = type;
         osc.frequency.setValueAtTime(freqStart, now);
         osc.frequency.exponentialRampToValueAtTime(freqEnd, now + duration);
-        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.setValueAtTime(gainVal * 0.4, now); // 60% reduction in volume
         gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
         osc.start(now);
         osc.stop(now + duration);
@@ -225,31 +228,21 @@ const AudioEngine = {
         const gain1 = ctx.createGain();
         osc1.connect(gain1); gain1.connect(ctx.destination);
         osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(160, now);
+        osc1.frequency.setValueAtTime(120, now);
         osc1.frequency.exponentialRampToValueAtTime(55, now + 0.12);
-        gain1.gain.setValueAtTime(0.5, now);
+        gain1.gain.setValueAtTime(0.15, now);
         gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
         osc1.start(now); osc1.stop(now + 0.12);
 
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.connect(gain2); gain2.connect(ctx.destination);
-        osc2.type = 'sawtooth';
+        osc2.type = 'triangle';
         osc2.frequency.setValueAtTime(90, now);
-        osc2.frequency.exponentialRampToValueAtTime(300, now + 0.1);
-        gain2.gain.setValueAtTime(0.18, now);
+        osc2.frequency.exponentialRampToValueAtTime(200, now + 0.1);
+        gain2.gain.setValueAtTime(0.04, now);
         gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
         osc2.start(now); osc2.stop(now + 0.1);
-
-        const osc3 = ctx.createOscillator();
-        const gain3 = ctx.createGain();
-        osc3.connect(gain3); gain3.connect(ctx.destination);
-        osc3.type = 'triangle';
-        osc3.frequency.setValueAtTime(800, now + 0.02);
-        osc3.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-        gain3.gain.setValueAtTime(0.08, now + 0.02);
-        gain3.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
-        osc3.start(now + 0.02); osc3.stop(now + 0.1);
     },
 
     starCollect() {
@@ -281,14 +274,14 @@ const AudioEngine = {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 400;
+        filter.frequency.value = 300;
         source.connect(filter);
         filter.connect(gain);
         gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(1.2, ctx.currentTime);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
         source.start();
-        this._sweep(80, 20, 'sine', 0.3, 0.5);
+        this._sweep(80, 20, 'sine', 0.15, 0.5);
     },
 
     badgeUnlock() {
@@ -362,14 +355,14 @@ const AudioEngine = {
             const arpGain = ctx.createGain();
             const arpFilter = ctx.createBiquadFilter();
             
-            arpOsc.type = 'square';
+            arpOsc.type = 'triangle';
             arpOsc.frequency.value = arpNotes[step % arpNotes.length];
             
             arpFilter.type = 'lowpass';
-            arpFilter.frequency.setValueAtTime(400, now);
-            arpFilter.frequency.exponentialRampToValueAtTime(1500, now + (tempo / 2));
+            arpFilter.frequency.setValueAtTime(300, now);
+            arpFilter.frequency.exponentialRampToValueAtTime(1000, now + (tempo / 2));
             
-            arpGain.gain.setValueAtTime(0.04, now);
+            arpGain.gain.setValueAtTime(0.02, now);
             arpGain.gain.exponentialRampToValueAtTime(0.001, now + tempo - 0.02);
             
             arpOsc.connect(arpFilter);
@@ -383,10 +376,10 @@ const AudioEngine = {
             if (step % 4 === 0) {
                 const bassOsc = ctx.createOscillator();
                 const bassGain = ctx.createGain();
-                bassOsc.type = 'sawtooth';
+                bassOsc.type = 'sine';
                 bassOsc.frequency.value = arpNotes[0] / 4; // Drop 2 octaves
                 
-                bassGain.gain.setValueAtTime(0.12, now);
+                bassGain.gain.setValueAtTime(0.06, now);
                 bassGain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 2));
                 
                 bassOsc.connect(bassGain);
@@ -3011,7 +3004,7 @@ window.refreshTheme = function() {
 
 // Add laser fire sweep sound dynamically to AudioEngine
 AudioEngine.laserFire = function() {
-    this._sweep(900, 300, 'sawtooth', 0.12, 0.15);
+    this._sweep(900, 300, 'triangle', 0.05, 0.15);
 };
 
 // ====================================
