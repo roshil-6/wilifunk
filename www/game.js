@@ -1871,6 +1871,10 @@ function thrust(pointer) {
         return;
     }
     if (gameState.fuel <= 0) return;
+    
+    // Drain a bit of fuel per thrust
+    gameState.fuel = Math.max(0, gameState.fuel - 1.0);
+    drawFuelBar(gameState.fuel);
     AudioEngine.thrust();
     AudioEngine.engineRev();
     const rocket = ROCKETS.find(r => r.id === gameState.selectedRocket) || ROCKETS[0];
