@@ -3133,16 +3133,19 @@ function hitPlanetObstacle(laser, planet) {
         createExplosionParticles(planet.x, planet.y, 0xff5252, 28);
         AudioEngine.explosion();
         
-        // Award 20 Ammo!
-        gameState.ammo += 20;
-        updateAmmoDisplay();
+        // Award Armor (Shield)
+        gameState.shieldEndTime = Date.now() + 5000;
+        if (typeof shieldEffect !== 'undefined' && shieldEffect) {
+            shieldEffect.setVisible(true);
+        }
+        if (AudioEngine.shieldActivate) AudioEngine.shieldActivate();
         
-        // Award 10 Points!
-        gameState.score += 10;
+        // Award 50 Points!
+        gameState.score += 50;
         updateScoreDisplay();
         
         // Float reward text
-        showFloatingText(planet.x, planet.y - 40, 'PLANET DESTROYED! 💥\n+20 AMMO ⚡  +10 PTS', '#2ed573');
+        showFloatingText(planet.x, planet.y - 40, 'PLANET DESTROYED! 💥\n+ARMOR BOOST 🛡️  +50 PTS', '#2ed573');
         
         planet.destroy();
     }

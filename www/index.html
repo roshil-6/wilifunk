@@ -436,50 +436,54 @@
             </div>
         </div>
 
-               <!-- Rockets Select Modal -->
+        <!-- Rockets Select Modal -->
         <div id="rocketsModal" class="menu-modal hidden">
-            <div class="modal-content">
+            <div class="modal-content" style="max-width: 800px; width: 90%;">
                 <h2 class="modal-title">SELECT YOUR ROCKET</h2>
-                <div class="modal-body" style="padding-top: 10px;">
-                    <!-- Active Rocket Preview Card -->
-                    <div id="activeRocketCard" style="background:linear-gradient(145deg,#120828,#0d0520);border:2px solid #ff5bbe;border-radius:20px;padding:18px 16px 14px;text-align:center;margin-bottom:16px;position:relative;overflow:hidden;">
-                        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#ff5bbe,transparent);"></div>
+                <div class="modal-body" style="padding-top: 20px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+                    
+                    <!-- Active Rocket Preview Card (Left Column) -->
+                    <div id="activeRocketCard" style="flex: 1; min-width: 250px; background:linear-gradient(145deg,#120828,#0d0520);border:2px solid #ff5bbe;border-radius:20px;padding:24px 16px;text-align:center;position:relative;overflow:hidden; box-shadow: 0 10px 30px rgba(255,91,190,0.15);">
+                        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,#ff5bbe,transparent);"></div>
+                        
                         <!-- Real 3D Preview Canvas -->
-                        <div id="rocket3dPreviewContainer" style="width:150px;height:150px;margin:0 auto 12px;position:relative;border-radius:50%;background:rgba(255,91,190,0.06);border:1px solid rgba(255,91,190,0.2);overflow:hidden;">
+                        <div id="rocket3dPreviewContainer" style="width:160px;height:160px;margin:0 auto 16px;position:relative;border-radius:50%;background:rgba(255,91,190,0.06);border:1px solid rgba(255,91,190,0.3);overflow:hidden; box-shadow: inset 0 0 20px rgba(255,91,190,0.2);">
                             <canvas id="modalRocket3dCanvas" style="width:100%;height:100%;display:block;"></canvas>
                         </div>
-                        <h3 id="modalActiveRocketName" style="color:#ffffff;margin:0 0 3px;font-family:'Orbitron',sans-serif;font-size:15px;letter-spacing:1px;">PIONEER ROCKET</h3>
-                        <p id="modalActiveRocketEdition" style="color:#ff5bbe;font-size:10px;margin:0 0 14px;font-weight:bold;letter-spacing:2px;">SILVER &amp; RED EDITION</p>
+                        <h3 id="modalActiveRocketName" style="color:#ffffff;margin:0 0 6px;font-family:'Orbitron',sans-serif;font-size:18px;letter-spacing:1px; text-transform: uppercase;">PIONEER ROCKET</h3>
+                        <p id="modalActiveRocketEdition" style="color:#ff5bbe;font-size:11px;margin:0 0 20px;font-weight:bold;letter-spacing:2px; text-transform: uppercase;">SILVER &amp; RED EDITION</p>
                         
                         <!-- Stats as mini bars -->
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:10px;color:#d8c9f3;text-align:left;margin-bottom:14px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;color:#d8c9f3;text-align:left;margin-bottom:24px;">
                             <div>
-                                <div style="color:#aaa;margin-bottom:3px;">🚀 Speed <strong id="modalActiveRocketSpeed" style="color:#fff;float:right;">8/10</strong></div>
-                                <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:5px;"><div style="width:80%;background:#ff5bbe;border-radius:4px;height:100%;"></div></div>
+                                <div style="color:#a0aec0;margin-bottom:4px;font-family:'Orbitron',sans-serif;">SPEED <strong id="modalActiveRocketSpeed" style="color:#fff;float:right;">8/10</strong></div>
+                                <div style="background:rgba(255,255,255,0.08);border-radius:6px;height:6px;overflow:hidden;"><div style="width:80%;background:linear-gradient(90deg, #ff0055, #ff5bbe);border-radius:6px;height:100%;"></div></div>
                             </div>
                             <div>
-                                <div style="color:#aaa;margin-bottom:3px;">🛡️ Armor <strong id="modalActiveRocketArmor" style="color:#fff;float:right;">9/10</strong></div>
-                                <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:5px;"><div style="width:90%;background:#00d4ff;border-radius:4px;height:100%;"></div></div>
+                                <div style="color:#a0aec0;margin-bottom:4px;font-family:'Orbitron',sans-serif;">ARMOR <strong id="modalActiveRocketArmor" style="color:#fff;float:right;">9/10</strong></div>
+                                <div style="background:rgba(255,255,255,0.08);border-radius:6px;height:6px;overflow:hidden;"><div style="width:90%;background:linear-gradient(90deg, #0055ff, #00d4ff);border-radius:6px;height:100%;"></div></div>
                             </div>
                             <div>
-                                <div style="color:#aaa;margin-bottom:3px;">💥 Blast <strong id="modalActiveRocketBlaster" style="color:#fff;float:right;">7/10</strong></div>
-                                <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:5px;"><div style="width:70%;background:#ffd700;border-radius:4px;height:100%;"></div></div>
+                                <div style="color:#a0aec0;margin-bottom:4px;font-family:'Orbitron',sans-serif;">BLAST <strong id="modalActiveRocketBlaster" style="color:#fff;float:right;">7/10</strong></div>
+                                <div style="background:rgba(255,255,255,0.08);border-radius:6px;height:6px;overflow:hidden;"><div style="width:70%;background:linear-gradient(90deg, #b8860b, #ffd700);border-radius:6px;height:100%;"></div></div>
                             </div>
                             <div>
-                                <div style="color:#aaa;margin-bottom:3px;">⭐ Rating <strong style="color:#fff;float:right;">★★★★</strong></div>
-                                <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:5px;"><div style="width:85%;background:#ffd700;border-radius:4px;height:100%;"></div></div>
+                                <div style="color:#a0aec0;margin-bottom:4px;font-family:'Orbitron',sans-serif;">RATING <strong style="color:#fff;float:right;">★★★★</strong></div>
+                                <div style="background:rgba(255,255,255,0.08);border-radius:6px;height:6px;overflow:hidden;"><div style="width:85%;background:linear-gradient(90deg, #ffd700, #ffea00);border-radius:6px;height:100%;"></div></div>
                             </div>
                         </div>
                         
-                        <button id="modalActiveSelectBtn" style="background:linear-gradient(135deg,#ff5bbe,#e0009e);border:none;padding:11px 20px;border-radius:30px;font-family:'Orbitron',sans-serif;font-weight:bold;width:100%;color:#ffffff;cursor:pointer;font-size:13px;letter-spacing:1px;animation:pulse-pink 2s infinite;">✦ ACTIVE (SELECTED)</button>
+                        <button id="modalActiveSelectBtn" style="background:linear-gradient(135deg,#ff5bbe,#e0009e);border:none;padding:14px 20px;border-radius:30px;font-family:'Orbitron',sans-serif;font-weight:900;width:100%;color:#ffffff;cursor:pointer;font-size:14px;letter-spacing:1px;animation:pulse-pink 2s infinite;box-shadow:0 6px 0 #9e006b, 0 10px 20px rgba(255,91,190,0.3);">✦ ACTIVE (SELECTED)</button>
                     </div>
 
-                    <!-- Scrollable Rockets List -->
-                    <div style="max-height:260px;overflow-y:auto;margin-bottom:16px;padding-right:4px;">
-                        <div id="rocketGrid" class="rocket-grid" style="margin:0;"></div>
-                    </div>
+                    <!-- Scrollable Rockets List (Right Column) -->
+                    <div style="flex: 2; min-width: 300px; display: flex; flex-direction: column;">
+                        <div style="max-height: 400px; overflow-y: auto; padding-right: 8px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: rgba(0,0,0,0.2); padding: 16px;">
+                            <div id="rocketGrid" class="rocket-grid" style="margin:0;"></div>
+                        </div>
 
-                    <button id="closeRocketsBtn" style="background:none;border:none;color:#9d8abf;font-family:'Sora',sans-serif;font-size:12px;cursor:pointer;text-decoration:underline;display:block;margin:0 auto;">← BACK TO HANGAR</button>
+                        <button id="closeRocketsBtn" class="arcade-btn" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:14px 24px;border-radius:30px;font-family:'Sora',sans-serif;font-size:14px;font-weight:bold;color:#ccc;cursor:pointer;transition:all 0.2s;display:block;margin:0 auto;width:200px;">← BACK TO HANGAR</button>
+                    </div>
                 </div>
             </div>
         </div>  </div>
