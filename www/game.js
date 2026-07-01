@@ -337,68 +337,11 @@ const AudioEngine = {
     _engineNodes: null,
 
     startAmbient() {
-        if (this.muted || this._musicInterval) return;
-        const ctx = this._getCtx();
-        this._musicActive = true;
-        
-        // Synthwave style upbeat arpeggio
-        const arpNotes = [261.63, 311.13, 392.00, 466.16, 523.25, 392.00, 311.13, 392.00]; // C minor 7 arp
-        let step = 0;
-        const tempo = 0.15; // 150ms per 16th note
-
-        this._musicInterval = setInterval(() => {
-            if (!this._musicActive || this.muted) return;
-            const now = ctx.currentTime;
-            
-            // --- Arp Synth ---
-            const arpOsc = ctx.createOscillator();
-            const arpGain = ctx.createGain();
-            const arpFilter = ctx.createBiquadFilter();
-            
-            arpOsc.type = 'triangle';
-            arpOsc.frequency.value = arpNotes[step % arpNotes.length];
-            
-            arpFilter.type = 'lowpass';
-            arpFilter.frequency.setValueAtTime(300, now);
-            arpFilter.frequency.exponentialRampToValueAtTime(1000, now + (tempo / 2));
-            
-            arpGain.gain.setValueAtTime(0.02, now);
-            arpGain.gain.exponentialRampToValueAtTime(0.001, now + tempo - 0.02);
-            
-            arpOsc.connect(arpFilter);
-            arpFilter.connect(arpGain);
-            arpGain.connect(ctx.destination);
-            
-            arpOsc.start(now);
-            arpOsc.stop(now + tempo);
-
-            // --- Bass Synth (every 4th step) ---
-            if (step % 4 === 0) {
-                const bassOsc = ctx.createOscillator();
-                const bassGain = ctx.createGain();
-                bassOsc.type = 'sine';
-                bassOsc.frequency.value = arpNotes[0] / 4; // Drop 2 octaves
-                
-                bassGain.gain.setValueAtTime(0.06, now);
-                bassGain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 2));
-                
-                bassOsc.connect(bassGain);
-                bassGain.connect(ctx.destination);
-                
-                bassOsc.start(now);
-                bassOsc.stop(now + (tempo * 2));
-            }
-
-            step++;
-        }, tempo * 1000);
+        // Disabled per user request (no space sound needed)
     },
 
     stopAmbient() {
-        this._musicActive = false;
-        if (this._musicInterval) {
-            clearInterval(this._musicInterval);
-            this._musicInterval = null;
-        }
+        // Disabled
     },
 
     startEngineHum() {
