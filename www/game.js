@@ -422,6 +422,9 @@ let gameState = {
     obstacles: null,
     flyingObstacles: null,
     starItems: null,
+    fuelItems: null,
+    fuel: 100,
+    fuelTimer: null,
     stars: [],
     isGameOver: false,
     ammo: 5,
@@ -468,6 +471,9 @@ let bgGraphics;
 let bgTileSprite;
 let coinText;
 let scoreText;
+let fuelBarBg;
+let fuelBarFill;
+let fuelText;
 let highScoreText;
 let meteorText;
 let badgeText;
@@ -504,6 +510,7 @@ function preload() {
     createAsteroidTexture(this);
     createUFOTexture(this);
     createStarItemTexture(this);
+    createFuelItemTexture(this);
     createBlackHoleTexture(this);
     createCoinTexture(this);
     createLaserTexture(this);
@@ -1122,6 +1129,37 @@ function createUFOTexture(scene) {
     }
 }
 
+
+function createFuelItemTexture(scene) {
+    const key = 'fuelItem';
+    if (scene.textures.exists(key)) return;
+    const canvas = scene.textures.createCanvas(key, 30, 40);
+    const ctx = canvas.context;
+    
+    // Outer glow
+    ctx.shadowColor = 'rgba(0, 255, 136, 0.8)';
+    ctx.shadowBlur = 8;
+    
+    // Cylinder body
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    ctx.roundRect(5, 5, 20, 30, 4);
+    ctx.fill();
+    
+    // Metal bands
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1a0628';
+    ctx.fillRect(5, 10, 20, 4);
+    ctx.fillRect(5, 26, 20, 4);
+    
+    // F symbol
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Orbitron, sans-serif';
+    ctx.fillText('F', 11, 24);
+    
+    scene.textures.get(key).refresh();
+}
+
 function createStarItemTexture(scene) {
     const key = 'starItem';
     if (scene.textures.exists(key)) return;
@@ -1223,7 +1261,10 @@ function create() {
     gameState.obstacles = this.physics.add.group();
     gameState.flyingObstacles = this.physics.add.group();
     gameState.ufos = this.physics.add.group();
+    
     gameState.starItems = this.physics.add.group();
+    gameState.fuelItems = this.physics.add.group();
+
     gameState.blackHoles = this.physics.add.group();
     gameState.coinItems = this.physics.add.group();
     gameState.lasers = this.physics.add.group();
@@ -1238,7 +1279,10 @@ function create() {
     this.physics.add.collider(gameState.rocket, gameState.obstacles, onCollision, null, this);
     this.physics.add.collider(gameState.rocket, gameState.flyingObstacles, onCollision, null, this);
     this.physics.add.collider(gameState.rocket, gameState.ufos, onCollision, null, this);
+    
     this.physics.add.overlap(gameState.rocket, gameState.starItems, collectStar, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.fuelItems, collectFuel, null, this);
+
     this.physics.add.overlap(gameState.rocket, gameState.coinItems, collectCoin, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.ufoProjectiles, hitPlayerWithProjectile, null, this);
     this.physics.add.overlap(gameState.lasers, gameState.ufos, hitUFO, null, this);
@@ -1405,14 +1449,33 @@ function createUI(scene) {
         .setOrigin(0, 0).setDepth(99).setScrollFactor(0);
     scoreBg.setStrokeStyle(2, 0x00ffff, 0.5);
 
+    
     scoreText = scene.add.text(20 + scorePillW / 2, 18, '0', {
-        fontSize: (isMobile ? 30 : 40) + 'px',
-        fontFamily: "'Orbitron', monospace",
+        fontFamily: 'Orbitron',
+        fontSize: '18px',
         color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#001a1a',
-        strokeThickness: 5
-    }).setOrigin(0.5, 0).setDepth(100).setScrollFactor(0);
+        fontStyle: 'bold'
+    }).setOrigin(0.5, 0.5).setDepth(11).setScrollFactor(0);
+
+    // Fuel Gauge HUD
+    fuelBarBg = scene.add.graphics();
+    fuelBarBg.setDepth(10).setScrollFactor(0);
+    fuelBarBg.fillStyle(0x000000, 0.5);
+    fuelBarBg.fillRoundedRect(20, 60, 150, 16, 8);
+    fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+    fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+    
+    fuelText = scene.add.text(28, 62, 'FUEL', {
+        fontFamily: 'Orbitron',
+        fontSize: '10px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+    }).setDepth(11).setScrollFactor(0);
+
+    fuelBarFill = scene.add.graphics();
+    fuelBarFill.setDepth(10).setScrollFactor(0);
+    drawFuelBar(gameState.fuel);
+
 
     highScoreText = scene.add.text(20 + scorePillW / 2, 20 + (isMobile ? 30 : 40), 'HI: ' + gameState.highScore, {
         fontSize: (isMobile ? 11 : 13) + 'px',
@@ -1870,6 +1933,8 @@ function startGame() {
     gameState.isPlaying = true;
     gameState.isGameOver = false;
     gameState.score = 0;
+    gameState.fuel = 100;
+    if (fuelBarBg) drawFuelBar(gameState.fuel);
     gameState.coins = 0;
     gameState.nearMissCount = 0;
     gameState.meteorShowerActive = false;
@@ -1912,6 +1977,7 @@ function startGame() {
     // Meteor shower disabled per user request
     // gameState.meteorTimer = sceneRef.time.addEvent({ delay: 20000, callback: triggerMeteorShower, loop: true });
     gameState.starTimer = sceneRef.time.addEvent({ delay: 2000, callback: spawnStar, loop: true });
+    gameState.fuelTimer = sceneRef.time.addEvent({ delay: 3500, callback: spawnFuel, loop: true });
     gameState.difficultyTimer = sceneRef.time.addEvent({ delay: 5000, callback: increaseDifficulty, loop: true });
 
     updateScoreDisplay();
@@ -2119,6 +2185,58 @@ function spawnFlyingAsteroid() {
 
 function spawnUFO() {
     return; // UFOs completely disabled per user request
+}
+
+
+function drawFuelBar(fuel) {
+    if (!fuelBarFill) return;
+    fuelBarFill.clear();
+    const percent = Math.max(0, Math.min(100, fuel)) / 100;
+    const color = percent > 0.3 ? 0x00ff88 : 0xff0055;
+    
+    // Add pulsing glow if critical
+    if (percent <= 0.3) {
+        if (Math.floor(Date.now() / 200) % 2 === 0) {
+            fuelBarBg.lineStyle(2, 0xff0055, 0.8);
+            fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+        } else {
+            fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+            fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+        }
+    } else {
+        fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+        fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+    }
+
+    fuelBarFill.fillStyle(color, 1);
+    fuelBarFill.fillRoundedRect(22, 62, Math.max(1, 146 * percent), 12, 6);
+}
+
+function spawnFuel() {
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+    const fuel = gameState.fuelItems.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'fuelItem');
+    fuel.body.allowGravity = false;
+    fuel.body.setVelocityX(-gameState.obstacleSpeed * 0.9);
+    fuel.setDepth(5);
+    
+    sceneRef.tweens.add({ targets: fuel, y: fuel.y - 15, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+}
+
+function collectFuel(rocket, fuel) {
+    fuel.destroy();
+    
+    // Small heal if already maxed to reward collecting
+    if (gameState.fuel >= 95) {
+        addScore(5);
+        showFloatingText(fuel.x, fuel.y - 30, '+5 PTS', '#ffd700');
+    }
+    
+    gameState.fuel = Math.min(100, gameState.fuel + 30);
+    drawFuelBar(gameState.fuel);
+    
+    AudioEngine._sweep(600, 1200, 'sine', 0.1, 0.15);
+    createExplosionParticles(fuel.x, fuel.y, 0x00ff88, 12);
+    showFloatingText(fuel.x, fuel.y + 20, '+FUEL ⛽', '#00ff88');
 }
 
 function spawnStar() {
@@ -2345,6 +2463,7 @@ function gameOver() {
     if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
     if (gameState.asteroidTimer) gameState.asteroidTimer.remove();
     if (gameState.starTimer) gameState.starTimer.remove();
+    if (gameState.fuelTimer) gameState.fuelTimer.remove();
     if (gameState.difficultyTimer) gameState.difficultyTimer.remove();
     if (gameState.blackHoleTimer) gameState.blackHoleTimer.remove();
 
@@ -2469,6 +2588,7 @@ window.restartGame = function() {
     gameState.flyingObstacles.clear(true, true);
     gameState.ufos.clear(true, true);
     gameState.starItems.clear(true, true);
+    gameState.fuelItems.clear(true, true);
     gameState.blackHoles.clear(true, true);
     gameState.coinItems.clear(true, true);
     gameState.lasers.clear(true, true);
