@@ -412,36 +412,36 @@
 
         <!-- ====== LEADERBOARD MODAL ====== -->
         <div id="leaderboardModal" class="menu-modal hidden">
-            <div class="modal-content" style="max-width:420px;">
-                <h2 class="modal-title" style="color:#ffd700;">&#127941; LEADERBOARD</h2>
+            <div class="modal-content" style="max-width:600px; padding:32px;">
+                <h2 class="modal-title" style="color:#ffd700; font-size:24px; margin-bottom: 24px;">&#127941; LEADERBOARD</h2>
                 <div class="modal-body">
 
                     <!-- Current player banner -->
-                    <div id="lbPlayerBanner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:10px 14px;margin-bottom:16px;">
-                        <div style="display:flex;align-items:center;gap:10px;">
-                            <span style="font-size:22px;">&#128123;</span>
+                    <div id="lbPlayerBanner" style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,215,0,0.07);border:1px solid rgba(255,215,0,0.3);border-radius:16px;padding:16px 24px;margin-bottom:24px;">
+                        <div style="display:flex;align-items:center;gap:16px;">
+                            <span style="font-size:32px;">&#128123;</span>
                             <div>
-                                <div id="lbPlayerName" style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:13px;color:#ffd700;">GUEST</div>
-                                <div style="font-size:9px;color:rgba(255,255,255,0.4);font-family:'Orbitron',sans-serif;margin-top:1px;">YOUR PILOT</div>
+                                <div id="lbPlayerName" style="font-family:'Orbitron',sans-serif;font-weight:700;font-size:18px;color:#ffd700; letter-spacing: 1px;">GUEST</div>
+                                <div style="font-size:12px;color:rgba(255,255,255,0.5);font-family:'Orbitron',sans-serif;margin-top:4px;">YOUR PILOT</div>
                             </div>
                         </div>
                         <div style="text-align:right;">
-                            <div id="lbPlayerScore" style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:22px;color:#ffffff;">0</div>
-                            <div style="font-size:9px;color:rgba(255,255,255,0.4);font-family:'Orbitron',sans-serif;">BEST SCORE</div>
+                            <div id="lbPlayerScore" style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:36px;color:#ffffff; text-shadow: 0 0 10px rgba(255,255,255,0.3);">0</div>
+                            <div style="font-size:12px;color:rgba(255,255,255,0.5);font-family:'Orbitron',sans-serif; margin-top:2px;">BEST SCORE</div>
                         </div>
                     </div>
 
                     <!-- Leaderboard list -->
-                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 4px;">
-                        <span style="font-family:'Orbitron',sans-serif;font-size:9px;color:rgba(255,255,255,0.3);letter-spacing:1px;">RANK &nbsp; PILOT</span>
-                        <span style="font-family:'Orbitron',sans-serif;font-size:9px;color:rgba(255,255,255,0.3);letter-spacing:1px;">SCORE</span>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding:0 12px;">
+                        <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:1px;font-weight:bold;">RANK &nbsp;&nbsp; PILOT</span>
+                        <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:1px;font-weight:bold;">SCORE</span>
                     </div>
-                    <div id="leaderboardList" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+                    <div id="leaderboardList" style="max-height:350px;overflow-y:auto;display:flex;flex-direction:column;gap:10px; padding-right: 8px;"></div>
 
                     <!-- Change name + close -->
-                    <div style="display:flex;gap:10px;margin-top:18px;">
-                        <button id="changeNameBtn" style="flex:1;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);padding:10px;border-radius:20px;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:#ffd700;cursor:pointer;letter-spacing:1px;">&#9998; CHANGE NAME</button>
-                        <button id="closeLeaderboardBtn" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);padding:10px;border-radius:20px;font-family:'Sora',sans-serif;font-size:12px;color:#aaa;cursor:pointer;">CLOSE</button>
+                    <div style="display:flex;gap:16px;margin-top:28px;">
+                        <button id="changeNameBtn" style="flex:1;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);padding:14px;border-radius:30px;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:#ffd700;cursor:pointer;letter-spacing:1px; transition:all 0.2s;">&#9998; CHANGE NAME</button>
+                        <button id="closeLeaderboardBtn" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);padding:14px;border-radius:30px;font-family:'Sora',sans-serif;font-size:14px;font-weight:bold;color:#ccc;cursor:pointer; transition:all 0.2s;">CLOSE</button>
                     </div>
                 </div>
             </div>
@@ -838,12 +838,12 @@
                 const rowBg = isMe ? 'rgba(255,215,0,0.1)' : (i % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent');
                 const rowBorder = isMe ? '1px solid rgba(255,215,0,0.3)' : '1px solid transparent';
                 return `
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:10px;background:${rowBg};border:${rowBorder};">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <span style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:${i<3?'16':'12'}px;color:${rankColor};min-width:28px;text-align:center;">${medal}</span>
-                        <span style="font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:${isMe ? '#ffd700' : '#ffffff'};letter-spacing:0.5px;">${e.name}${isMe ? ' ★' : ''}</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-radius:12px;background:${rowBg};border:${rowBorder};">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        <span style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:${i<3?'22':'15'}px;color:${rankColor};min-width:32px;text-align:center;">${medal}</span>
+                        <span style="font-family:'Orbitron',sans-serif;font-size:15px;font-weight:700;color:${isMe ? '#ffd700' : '#ffffff'};letter-spacing:1px;">${e.name}${isMe ? ' ★' : ''}</span>
                     </div>
-                    <span style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:16px;color:${isMe ? '#ffd700' : '#fff'};">${e.score}</span>
+                    <span style="font-family:'Orbitron',sans-serif;font-weight:900;font-size:20px;color:${isMe ? '#ffd700' : '#fff'};">${e.score}</span>
                 </div>`;
             }).join('');
         }
