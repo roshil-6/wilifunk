@@ -1134,29 +1134,25 @@ function createUFOTexture(scene) {
 function createFuelItemTexture(scene) {
     const key = 'fuelItem';
     if (scene.textures.exists(key)) return;
-    const canvas = scene.textures.createCanvas(key, 30, 40);
+    const canvas = scene.textures.createCanvas(key, 32, 32);
     const ctx = canvas.context;
     
-    // Outer glow
-    ctx.shadowColor = 'rgba(0, 255, 136, 0.8)';
-    ctx.shadowBlur = 8;
+    // Draw a clearer fuel canister without relying on roundRect or excessive blur
     
-    // Cylinder body
+    // Outer border/glow
     ctx.fillStyle = '#00ff88';
-    ctx.beginPath();
-    ctx.roundRect(5, 5, 20, 30, 4);
-    ctx.fill();
+    ctx.fillRect(4, 4, 24, 24);
     
-    // Metal bands
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#1a0628';
-    ctx.fillRect(5, 10, 20, 4);
-    ctx.fillRect(5, 26, 20, 4);
+    // Inner dark container
+    ctx.fillStyle = '#2d3436';
+    ctx.fillRect(6, 6, 20, 20);
     
-    // F symbol
+    // Fuel emoji or text
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px Orbitron, sans-serif';
-    ctx.fillText('F', 11, 24);
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⛽', 16, 16);
     
     scene.textures.get(key).refresh();
 }
