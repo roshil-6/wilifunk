@@ -1825,6 +1825,201 @@ function update() {
         if (dist < 350) {
             const force = (350 - dist) * 0.08;
             const angle = Math.atan2(dy, dx);
+// ====================================
+function update() {
+    ThreeGLBBridge.update();
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+
+    if (typeof bgTileSprite !== 'undefined' && bgTileSprite) {
+        bgTileSprite.tilePositionX += gameState.obstacleSpeed * 0.08 * 0.016; // 0.08 scaled per frame
+    }
+
+    if (gameState.hasShield) {
+        shieldEffect.setVisible(true);
+        shieldEffect.setPosition(gameState.rocket.x, gameState.rocket.y);
+        const remaining = gameState.shieldEndTime - Date.now();
+        if (remaining <= 0) {
+            deactivateShield();
+        } else if (remaining < 1500) {
+            shieldEffect.setVisible(Math.floor(Date.now() / 100) % 2 === 0);
+        }
+    } else {
+        shieldEffect.setVisible(false);
+    }
+
+    const velocityY = gameState.rocket.body.velocity.y;
+    const targetAngle = Phaser.Math.Clamp(velocityY * 0.1, -30, 45);
+    gameState.rocket.angle = Phaser.Math.Linear(gameState.rocket.angle, targetAngle, 0.15);
+
+    const rad = gameState.rocket.rotation;
+    const deg = gameState.rocket.angle;
+    const baseOffset = getRocketExhaustOffset();
+    const baseGlowOffset = getRocketExhaustGlowOffset();
+    
+    const rx = Math.cos(rad) * baseOffset.x - Math.sin(rad) * baseOffset.y;
+    const ry = Math.sin(rad) * baseOffset.x + Math.cos(rad) * baseOffset.y;
+    
+    const rgx = Math.cos(rad) * baseGlowOffset.x - Math.sin(rad) * baseGlowOffset.y;
+    const rgy = Math.sin(rad) * baseGlowOffset.x + Math.cos(rad) * baseGlowOffset.y;
+    
+    if (gameState.exhaust) {
+        gameState.exhaust.followOffset.set(rx, ry);
+        gameState.exhaust.setAngle({ min: 165 + deg, max: 195 + deg });
+    }
+    if (gameState.exhaustGlow) {
+        gameState.exhaustGlow.followOffset.set(rgx, rgy);
+        gameState.exhaustGlow.setAngle({ min: 168 + deg, max: 192 + deg });
+    }
+
+    if (gameState.rocket.body.velocity.y > 380) {
+        gameState.rocket.body.velocity.y *= 0.97;
+    }
+
+    if (gameState.isPlaying && !gameState.isGameOver) {
+        if (gameState.rocket.y < -40 || gameState.rocket.y >= 760) {
+            gameOver();
+        }
+    }
+
+    gameState.stars.forEach(star => {
+        if (star.scrollSpeed) {
+            star.x -= gameState.obstacleSpeed * star.scrollSpeed * 0.016;
+            if (star.x < -100) {
+                star.x = 900;
+            }
+        }
+    });
+
+    gameState.lastSpawnX -= gameState.obstacleSpeed * 0.016;
+
+    gameState.obstacles.getChildren().forEach(obstacle => {
+        if (!obstacle.scored && obstacle.x < gameState.rocket.x - 30) {
+            if (obstacle.isTop) {
+                addScore(GAME.POINTS_PER_PASS);
+                // showFloatingText(gameState.rocket.x, gameState.rocket.y - 50, '+1 SCORE!', '#00ff88'); // Removed to make scoring less "obvious"
+                spawnCoinsAtPosition(obstacle.x, obstacle.y + 100);
+                updateMissionProgress('obstacles', 1);
+            }
+            obstacle.scored = true;
+            
+            const dist = Math.abs(gameState.rocket.y - obstacle.y);
+            if (dist < GAME.NEAR_MISS_DISTANCE + 50 && dist > 20) {
+                addScore(GAME.NEAR_MISS_BONUS);
+                addCoins(3);
+                showFloatingText(gameState.rocket.x + 40, gameState.rocket.y, '+5 NEAR MISS! 🔥', '#ffdd59');
+                showFloatingText(gameState.rocket.x + 40, gameState.rocket.y + 25, '+3 🪙', '#ffd700');
+                AudioEngine.nearMiss();
+                updateMissionProgress('nearMiss', 1);
+                gameState.nearMissCount++;
+            }
+        }
+        if (obstacle.x < -100) {
+            obstacle.destroy();
+        }
+    });
+
+    gameState.flyingObstacles.getChildren().forEach(asteroid => {
+        asteroid.rotation += 0.02;
+        if (!asteroid.scored && asteroid.x < gameState.rocket.x - 30) {
+            addScore(GAME.POINTS_PER_PASS);
+            updateMissionProgress('obstacles', 1);
+            asteroid.scored = true;
+        }
+        if (asteroid.x < -100) {
+            asteroid.destroy();
+        }
+    });
+
+    gameState.ufos.getChildren().forEach(ufo => {
+        let now = Date.now();
+        if (ufo.state === 'entering') {
+            if (ufo.x <= ufo.targetX) {
+                ufo.x = ufo.targetX;
+                ufo.body.setVelocityX(0);
+                ufo.state = 'hovering';
+                ufo.hoverTime = now;
+                ufo.lastShootTime = now;
+            }
+        } else if (ufo.state === 'hovering') {
+            // Smooth vertical hover motion
+            ufo.sineOffset += 0.04;
+            ufo.y = ufo.startY + Math.sin(ufo.sineOffset) * 65;
+            
+            // Shoot at player every 1.8 seconds
+            if (now - ufo.lastShootTime > 1800) {
+                ufo.lastShootTime = now;
+                shootPlayer(ufo);
+            }
+            
+            // Fly off screen after 5 seconds
+            if (now - ufo.hoverTime > 5000) {
+                ufo.state = 'leaving';
+                ufo.body.setVelocityX(-gameState.obstacleSpeed * 1.5);
+            }
+        }
+        
+        if (ufo.x < -150 || ufo.x > sceneRef.scale.width + 250) ufo.destroy();
+    });
+
+    // Clean up off-screen lasers and projectiles
+    gameState.lasers.getChildren().forEach(laser => {
+        if (laser.x > sceneRef.scale.width + 100) laser.destroy();
+    });
+    gameState.ufoProjectiles.getChildren().forEach(proj => {
+        if (proj.x < -100 || proj.y < -100 || proj.y > sceneRef.scale.height + 100) proj.destroy();
+    });
+
+    gameState.starItems.getChildren().forEach(star => {
+        if (star.x < -100) star.destroy();
+    });
+
+    gameState.coinItems.getChildren().forEach(coin => {
+        if (coin.x < -100) coin.destroy();
+    });
+
+    if (gameState.selectedRocket === 'pulsar') {
+        const pullRadius = 90;
+        gameState.starItems.getChildren().forEach(star => {
+            const dx = gameState.rocket.x - star.x;
+            const dy = gameState.rocket.y - star.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < pullRadius) {
+                const pullSpeed = 7.5;
+                star.x += (dx / dist) * pullSpeed;
+                star.y += (dy / dist) * pullSpeed;
+            }
+        });
+    }
+
+    if (gameState.gameStartTime > 0) {
+        const elapsed = (Date.now() - gameState.gameStartTime) / 1000;
+        updateMissionProgress('time', elapsed, true);
+    }
+
+    gameState.blackHoles.getChildren().forEach(hole => {
+        hole.x -= gameState.obstacleSpeed * 0.016;
+        hole.rotation -= 0.05;
+
+        if (Math.random() > 0.5) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Phaser.Math.Between(30, 60);
+            const p = sceneRef.add.circle(hole.x + Math.cos(angle) * dist, hole.y + Math.sin(angle) * dist, 2, 0x8b5cf6, 1);
+            sceneRef.tweens.add({
+                targets: p,
+                x: hole.x, y: hole.y, alpha: 0, duration: 400,
+                onComplete: () => p.destroy()
+            });
+        }
+
+        hole.setVelocityX(-gameState.obstacleSpeed * 0.8);
+
+        const dx = hole.x - gameState.rocket.x;
+        const dy = hole.y - gameState.rocket.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 350) {
+            const force = (350 - dist) * 0.08;
+            const angle = Math.atan2(dy, dx);
             gameState.rocket.body.velocity.y += Math.sin(angle) * force;
             const now = Date.now();
             if (!hole._lastRumble || now - hole._lastRumble > 300) {
@@ -1844,6 +2039,16 @@ function update() {
             scheduleNextBlackHole();
         }
     });
+
+    // Constant fuel drain
+    if (gameState.isPlaying && !gameState.isGameOver) {
+        gameState.fuel -= 0.03;
+        if (gameState.fuel <= 0) {
+            gameState.fuel = 0;
+            gameState.rocket.body.allowGravity = true;
+        }
+        drawFuelBar(gameState.fuel);
+    }
 }
 
 // ====================================
@@ -1856,6 +2061,8 @@ function thrust(pointer) {
         startGame();
         return;
     }
+    if (gameState.fuel <= 0) return;
+
     AudioEngine.thrust();
     AudioEngine.engineRev();
     const rocket = ROCKETS.find(r => r.id === gameState.selectedRocket) || ROCKETS[0];
@@ -2588,740 +2795,6 @@ window.restartGame = function() {
     gameState.flyingObstacles.clear(true, true);
     gameState.ufos.clear(true, true);
     gameState.starItems.clear(true, true);
-    gameState.fuelItems.clear(true, true);
-    gameState.blackHoles.clear(true, true);
-    gameState.coinItems.clear(true, true);
-    gameState.lasers.clear(true, true);
-    gameState.ufoProjectiles.clear(true, true);
-
-    gameState.rocket.setPosition(150, 300).setVelocity(0, 0).setAngle(0).setVisible(true);
-    gameState.rocket.setTexture('rocket_' + gameState.selectedRocket);
-    gameState.rocket.setScale(0.5);
-    applyRocketCollisionProfile();
-    updateExhaustColors();
-    gameState.rocket.body.allowGravity = false;
-    
-    sceneRef.physics.world.gravity.y = 480;
-
-    updateScoreDisplay();
-    updateCoinDisplay();
-    highScoreText.setColor('#888888');
-    badgeText.setAlpha(0);
-    if (typeof meteorText !== 'undefined') meteorText.setVisible(false);
-
-    document.getElementById('gameOverOverlay')?.classList.add('hidden');
-    document.getElementById('winScreen')?.classList.add('hidden');
-    document.getElementById('mobileLaserBtn')?.classList.add('hidden');
-    
-    // Gameplay will be explicitly started by the Launch/Retry buttons
-};
-
-window.resumeFromRevive = function(cost) {
-    if (cost === 'coins' && gameState.totalCoins >= 20) {
-        addCoins(-20); // Deduct 20 coins
-    }
-    gameState.revivesUsed = (gameState.revivesUsed || 0) + 1;
-    gameState.isReviving = false;
-    document.getElementById('reviveModal')?.classList.add('hidden');
-    
-    // Resume physics and timers
-    if (gameState.obstacleTimer) gameState.obstacleTimer.paused = false;
-    if (gameState.asteroidTimer) gameState.asteroidTimer.paused = false;
-    if (gameState.starTimer) gameState.starTimer.paused = false;
-    sceneRef.physics.world.resume();
-
-    // Grant temporary invulnerability & visual effect
-    gameState.isInvincible = true;
-    showFloatingText(gameState.rocket.x, gameState.rocket.y - 30, 'REVIVED! 🛡️', '#00ff88');
-    
-    sceneRef.tweens.add({
-        targets: gameState.rocket, alpha: 0.5, duration: 100, yoyo: true, repeat: 20, // 2 seconds
-        onComplete: () => { gameState.rocket.alpha = 1; gameState.isInvincible = false; }
-    });
-
-    gameState.rocket.setVelocity(0, 0);
-    // Move rocket slightly left to give breathing room
-    gameState.rocket.setX(Math.max(50, gameState.rocket.x - 50));
-    gameState.rocket.setY(300); // Center height
-    
-    // Restart engine sounds
-    AudioEngine.startEngineHum();
-    AudioEngine.startAmbient();
-};
-
-window.giveUpRevive = function() {
-    gameState.isReviving = false;
-    gameState.revivesUsed = 3;
-    document.getElementById('reviveModal')?.classList.add('hidden');
-    sceneRef.physics.world.resume();
-    gameOver();
-};
-
-// ====================================
-// SPECIAL EVENTS
-// ====================================
-function triggerMeteorShower() {
-    if (gameState.isGameOver || gameState.score < 10) return;
-    gameState.meteorShowerActive = true;
-    AudioEngine.meteorWarning();
-    if (typeof meteorText !== 'undefined') {
-        meteorText.setVisible(true).setAlpha(1);
-        sceneRef.tweens.add({ targets: meteorText, alpha: 0, duration: 200, yoyo: true, repeat: 5, onComplete: () => meteorText.setVisible(false) });
-    }
-    for (let i = 0; i < 6; i++) sceneRef.time.delayedCall(i * 600 + 1000, spawnMeteor);
-    
-    sceneRef.time.delayedCall(5000, () => {
-        if (!gameState.isGameOver) {
-            gameState.meteorShowerActive = false;
-            updateMissionProgress('meteorSurvive', 1);
-        }
-    });
-}
-
-function spawnMeteor() {
-    if (gameState.isGameOver) return;
-    const meteor = gameState.flyingObstacles.create(900, Phaser.Math.Between(0, 600), 'asteroid');
-    meteor.setScale(0.35).body.allowGravity = false;
-    const angle = Phaser.Math.Between(160, 200) * (Math.PI / 180);
-    meteor.body.setVelocity(
-        Math.cos(angle) * gameState.obstacleSpeed * 1.5,
-        Math.sin(angle) * gameState.obstacleSpeed * 1.5
-    );
-    meteor.setDepth(6);
-    meteor.scored = false;
-}
-
-function scheduleNextBlackHole() {
-    if (gameState.isGameOver) return;
-    const z = ZONES[gameState.currentZone] || ZONES[0];
-    const delay = Phaser.Math.Between(z.bhMin, z.bhMax);
-    gameState.blackHoleTimer = sceneRef.time.delayedCall(delay, spawnBlackHole);
-}
-
-function spawnBlackHole() {
-    if (gameState.isGameOver || gameState.score < 50) {
-        scheduleNextBlackHole();
-        return;
-    }
-    const yPos = Phaser.Math.Between(100, sceneRef.scale.height - 100);
-    const bh = gameState.blackHoles.create(sceneRef.scale.width + 150, yPos, 'blackhole');
-    bh.body.allowGravity = false;
-    bh.body.setCircle(30);
-    bh.setDepth(5);
-}
-
-// ====================================
-// THREE.JS GLB RENDER BRIDGE
-// ====================================
-const ThreeGLBBridge = {
-    renderer: null,
-    scenes: {}, // key -> { renderer, scene, camera, getMesh, webglCanvas, canvas2D, ctx2d, phaserTexture, rotateSpeed, size }
-    sceneRef: null,
-    
-    init(scene) {
-        this.sceneRef = scene;
-        if (typeof THREE === 'undefined') {
-            console.warn('THREE is not defined. Skipping 3D assets load.');
-            return;
-        }
-        
-        console.log('=== INITIALIZING 3D GLB ASSETS ===');
-
-        // Initialize shared renderer once to avoid too many WebGL contexts!
-        if (!this.renderer) {
-            let tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 512;
-            tempCanvas.height = 512;
-            this.renderer = new THREE.WebGLRenderer({
-                canvas: tempCanvas,
-                alpha: true,
-                antialias: true,
-                preserveDrawingBuffer: true
-            });
-            this.renderer.setPixelRatio(2);
-            this.renderer.outputEncoding = THREE.sRGBEncoding;
-        }
-
-        // Helper to create metallic color materials
-        const getMetallicMaterial = (hexColor) => {
-            return new THREE.MeshStandardMaterial({
-                color: new THREE.Color(hexColor),
-                roughness: 0.18,
-                metalness: 0.85,
-                flatShading: false
-            });
-        };
-
-        // Pioneer Rocket
-        this.register3DSprite('rocket_pioneer', '3d_assests/Meshy_AI_a_rocket_for_game_pla_0630205609_generate.glb', 256, (mesh) => {
-            mesh.rotation.set(Math.PI / 4, 0, -Math.PI / 2); // Tilt to point right
-            mesh.scale.set(0.9, 0.9, 0.9);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const colors = [];
-                    const colorBody = new THREE.Color('#dcdde1'); // Silver
-                    const colorAccent = new THREE.Color('#ff3838'); // Red Accent
-                    for (let i = 0; i < pos.count; i++) {
-                        let y = pos.getY(i);
-                        if (y > 0.48 || y < -0.38) {
-                            colors.push(colorAccent.r, colorAccent.g, colorAccent.b);
-                        } else {
-                            colors.push(colorBody.r, colorBody.g, colorBody.b);
-                        }
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshStandardMaterial({
-                        vertexColors: true, roughness: 0.2, metalness: 0.8, flatShading: false
-                    });
-                }
-            });
-        });
-
-        // Red Fury Rocket
-        this.register3DSprite('rocket_red_fury', '3d_assests/Meshy_AI_Red_Rocket_0701105024_generate.glb', 256, (mesh) => {
-            mesh.rotation.set(Math.PI / 4, 0, -Math.PI / 2); // Tilt to point right
-            mesh.scale.set(0.95, 0.95, 0.95);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const colors = [];
-                    const colorBody = new THREE.Color('#a4b0be'); // Silver Grey body
-                    const colorAccent = new THREE.Color('#ea2027'); // Crimson Red fins/nose
-                    for (let i = 0; i < pos.count; i++) {
-                        let y = pos.getY(i);
-                        if (y > 0.48 || y < -0.38) {
-                            colors.push(colorAccent.r, colorAccent.g, colorAccent.b);
-                        } else {
-                            colors.push(colorBody.r, colorBody.g, colorBody.b);
-                        }
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshStandardMaterial({
-                        vertexColors: true, roughness: 0.15, metalness: 0.85, flatShading: false
-                    });
-                }
-            });
-        });
-
-        // Cosmic Pink Rocket (Emerald Shield)
-        this.register3DSprite('rocket_cosmic_pink', '3d_assests/Meshy_AI_Cosmic_Pink_Rocket_0701105044_generate.glb', 256, (mesh) => {
-            mesh.rotation.set(Math.PI / 4, 0, 0); // Correct rotation since model was created horizontal (along X) in GLB
-            mesh.scale.set(0.92, 0.92, 0.92);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const colors = [];
-                    const colorBody = new THREE.Color('#a0a5ab'); // Sleek metallic silver
-                    const colorAccent = new THREE.Color('#ff5bbe'); // Vibrant pink fins/nose
-                    for (let i = 0; i < pos.count; i++) {
-                        let xVal = pos.getX(i);
-                        if (xVal > 0.4 || xVal < -0.32) {
-                            colors.push(colorAccent.r, colorAccent.g, colorAccent.b);
-                        } else {
-                            colors.push(colorBody.r, colorBody.g, colorBody.b);
-                        }
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshStandardMaterial({
-                        vertexColors: true, roughness: 0.18, metalness: 0.82, flatShading: false
-                    });
-                }
-            });
-        });
-
-        // Asteroids (loaded from local GLB)
-        this.register3DSprite('asteroid', '3d_assests/Meshy_AI_Emerald_Ember_Asteroi_0630205214_generate.glb', 192, (mesh) => {
-            mesh.scale.set(0.55, 0.55, 0.55);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    if (child.geometry.attributes.color) child.material.vertexColors = true;
-                }
-            });
-        }, { y: 0.015, x: 0.01 });
-
-        // Planets (loaded from local GLB) — Detailed 3D rotating sprites (no overexposure, sharp gas-giant bands)
-        this.register3DSprite('planet1', '3d_assests/Meshy_AI_Rings_of_Saturn_0630205109_generate.glb', 512, (mesh) => {
-            mesh.scale.set(0.84, 0.84, 0.84); // Scaled slightly down so rings NEVER clip on canvas edges!
-            mesh.rotation.set(0.3, 0.5, -0.25);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const norm = geom.attributes.normal;
-                    const colors = [];
-                    const colorRing1 = new THREE.Color('#ffd700'); // Gold
-                    const colorRing2 = new THREE.Color('#00e5ff'); // Cyan
-                    const colorRing3 = new THREE.Color('#ff79c6'); // Pink
-                    for (let i = 0; i < pos.count; i++) {
-                        let x = pos.getX(i);
-                        let y = pos.getY(i);
-                        let z = pos.getZ(i);
-                        let nx = norm.getX(i);
-                        let ny = norm.getY(i);
-                        let nz = norm.getZ(i);
-                        
-                        // Fake diffuse shading based on vertex normal (simulates top-right-front light source)
-                        let dot = nx * 0.3 + ny * 0.5 + nz * 0.82;
-                        let intensity = 0.52 + 0.48 * Math.max(-0.2, dot);
-                        
-                        let dist = Math.sqrt(x*x + y*y + z*z);
-                        if (dist < 0.56) {
-                            // Procedural gas bands on planet body
-                            let band = Math.sin(y * 22.0);
-                            let colorBody = new THREE.Color('#e056fd');
-                            if (band > 0.35) {
-                                colorBody.set('#f386ff');
-                            } else if (band < -0.35) {
-                                colorBody.set('#ac19d3');
-                            }
-                            colors.push(colorBody.r * intensity, colorBody.g * intensity, colorBody.b * intensity);
-                        } else if (dist < 0.72) {
-                            colors.push(colorRing1.r * intensity, colorRing1.g * intensity, colorRing1.b * intensity);
-                        } else if (dist < 0.88) {
-                            colors.push(colorRing2.r * intensity, colorRing2.g * intensity, colorRing2.b * intensity);
-                        } else {
-                            colors.push(colorRing3.r * intensity, colorRing3.g * intensity, colorRing3.b * intensity);
-                        }
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshBasicMaterial({
-                        vertexColors: true
-                    });
-                }
-            });
-        }, { y: 0.006, x: 0 });
-
-        this.register3DSprite('planet2', '3d_assests/Meshy_AI_Striped_Majesty_of_Ju_0630205117_generate.glb', 512, (mesh) => {
-            mesh.scale.set(0.85, 0.85, 0.85);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const norm = geom.attributes.normal;
-                    const colors = [];
-                    for (let i = 0; i < pos.count; i++) {
-                        let x = pos.getX(i);
-                        let y = pos.getY(i);
-                        let z = pos.getZ(i);
-                        let nx = norm.getX(i);
-                        let ny = norm.getY(i);
-                        let nz = norm.getZ(i);
-                        
-                        // Fake diffuse shading
-                        let dot = nx * 0.3 + ny * 0.5 + nz * 0.82;
-                        let intensity = 0.52 + 0.48 * Math.max(-0.2, dot);
-                        
-                        let band = Math.sin(y * 18.0) * Math.cos(x * 2.0);
-                        let colorBody = new THREE.Color('#fd79a8');
-                        if (band > 0.4) {
-                            colorBody.set('#ffa6c1');
-                        } else if (band < -0.4) {
-                            colorBody.set('#cd3667');
-                        }
-                        colors.push(colorBody.r * intensity, colorBody.g * intensity, colorBody.b * intensity);
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshBasicMaterial({
-                        vertexColors: true
-                    });
-                }
-            });
-        }, { y: 0.005, x: 0 });
-
-        this.register3DSprite('planet3', '3d_assests/Meshy_AI_Rings_of_Saturn_0630205109_generate.glb', 512, (mesh) => {
-            mesh.scale.set(0.82, 0.82, 0.82); // Scaled slightly down so rings NEVER clip on canvas edges!
-            mesh.rotation.set(0.4, 0.3, 0.2);
-            mesh.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry.computeVertexNormals();
-                    const geom = child.geometry;
-                    const pos = geom.attributes.position;
-                    const norm = geom.attributes.normal;
-                    const colors = [];
-                    const colorRing1 = new THREE.Color('#a29bfe');
-                    const colorRing2 = new THREE.Color('#ff6bcb');
-                    for (let i = 0; i < pos.count; i++) {
-                        let x = pos.getX(i);
-                        let y = pos.getY(i);
-                        let z = pos.getZ(i);
-                        let nx = norm.getX(i);
-                        let ny = norm.getY(i);
-                        let nz = norm.getZ(i);
-                        
-                        // Fake diffuse shading
-                        let dot = nx * 0.3 + ny * 0.5 + nz * 0.82;
-                        let intensity = 0.52 + 0.48 * Math.max(-0.2, dot);
-                        
-                        let dist = Math.sqrt(x*x + y*y + z*z);
-                        if (dist < 0.56) {
-                            let band = Math.sin(y * 28.0);
-                            let colorBody = new THREE.Color('#ff79c6');
-                            if (band > 0.35) {
-                                colorBody.set('#ffabde');
-                            } else if (band < -0.35) {
-                                colorBody.set('#e04193');
-                            }
-                            colors.push(colorBody.r * intensity, colorBody.g * intensity, colorBody.b * intensity);
-                        } else if (dist < 0.75) {
-                            colors.push(colorRing1.r * intensity, colorRing1.g * intensity, colorRing1.b * intensity);
-                        } else {
-                            colors.push(colorRing2.r * intensity, colorRing2.g * intensity, colorRing2.b * intensity);
-                        }
-                    }
-                    geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-                    child.material = new THREE.MeshBasicMaterial({
-                        vertexColors: true
-                    });
-                }
-            });
-        }, { y: -0.005, x: 0 });
-    },
-
-    register3DSprite(key, glbUrl, size = 128, setupCb = null, rotateSpeed = null) {
-        let canvas2D = document.createElement('canvas');
-        canvas2D.width = size;
-        canvas2D.height = size;
-        let ctx2d = canvas2D.getContext('2d');
-
-        let scene = new THREE.Scene();
-
-        let camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-        camera.position.set(0, 0, 5);
-
-        // Balanced lighting — not too strong, shows colors clearly
-        let ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-        scene.add(ambientLight);
-
-        let dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(3, 5, 5);
-        scene.add(dirLight);
-        
-        let fillLight = new THREE.DirectionalLight(0xaaddff, 0.8);
-        fillLight.position.set(-4, -3, 4);
-        scene.add(fillLight);
-
-        let rimLight = new THREE.DirectionalLight(0xffaaff, 0.5);
-        rimLight.position.set(0, 0, -5);
-        scene.add(rimLight);
-
-        let loader = new THREE.GLTFLoader();
-        let mesh = null;
-
-        loader.load(glbUrl, (gltf) => {
-            mesh = gltf.scene;
-
-            if (setupCb) setupCb(mesh);
-
-            mesh.updateMatrixWorld(true);
-            const box = new THREE.Box3().setFromObject(mesh);
-            const center = box.getCenter(new THREE.Vector3());
-            mesh.position.sub(center);
-            mesh.updateMatrixWorld(true);
-
-            const sizeVec = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
-            const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z);
-            camera.position.z = maxDim * 1.15;
-
-            scene.add(mesh);
-
-            console.log('Successfully loaded 3D GLB for: ' + key);
-
-            if (key.startsWith('rocket_') && this.sceneRef) {
-                if (gameState.rocket && 'rocket_' + gameState.selectedRocket === key) {
-                    gameState.rocket.setTexture(key);
-                    applyRocketCollisionProfile();
-                }
-            }
-        }, undefined, (error) => {
-            console.error('Error loading 3D asset ' + key + ':', error);
-        });
-
-        if (this.sceneRef.textures.exists(key)) {
-            this.sceneRef.textures.remove(key);
-        }
-
-        let phaserTexture = this.sceneRef.textures.addCanvas(key, canvas2D);
-
-        this.scenes[key] = {
-            scene,
-            camera,
-            getMesh: () => mesh,
-            canvas2D,
-            ctx2d,
-            phaserTexture,
-            rotateSpeed,
-            size
-        };
-    },
-
-    update() {
-        if (!this.renderer) return;
-        for (let key in this.scenes) {
-            let s = this.scenes[key];
-            let mesh = s.getMesh();
-            if (mesh) {
-                if (s.rotateSpeed) {
-                    if (s.rotateSpeed.y) mesh.rotation.y += s.rotateSpeed.y;
-                    if (s.rotateSpeed.x) mesh.rotation.x += s.rotateSpeed.x;
-                }
-            }
-            // Resize and render using shared WebGLRenderer!
-            this.renderer.setSize(s.size, s.size);
-            this.renderer.render(s.scene, s.camera);
-            
-            // Draw result onto the 2D canvas of the sprite texture
-            s.ctx2d.clearRect(0, 0, s.size, s.size);
-            s.ctx2d.drawImage(this.renderer.domElement, 0, 0, s.size, s.size);
-            s.phaserTexture.refresh();
-        }
-    }
-};
-
-
-const game = new Phaser.Game(config);
-
-
-window.refreshTheme = function() {
-    if (typeof bgGraphics !== 'undefined' && bgGraphics && typeof ZONES !== 'undefined') {
-        const zone0 = ZONES[0];
-        bgGraphics.clear();
-        // disabled gradient
-        // disabled rect fill
-    }
-    
-    // update grid graphics if it exists
-    if (typeof gridGraphics !== 'undefined' && gridGraphics) {
-        gridGraphics.clear();
-        gridGraphics.lineStyle(2, getThemedColor(0x00ffff, false), 0.2);
-        gridGraphics.beginPath();
-        for (let i = 0; i < sceneRef.scale.width; i += 80) {
-            gridGraphics.moveTo(i, 0);
-            gridGraphics.lineTo(i, sceneRef.scale.height);
-        }
-        for (let j = 0; j < sceneRef.scale.height; j += 80) {
-            gridGraphics.moveTo(0, j);
-            gridGraphics.lineTo(sceneRef.scale.width, j);
-        }
-        gridGraphics.strokePath();
-    }
-};
-
-// Add laser fire sweep sound dynamically to AudioEngine
-AudioEngine.laserFire = function() {
-    this._sweep(900, 300, 'triangle', 0.05, 0.15);
-};
-
-// ====================================
-// WEAPONS SYSTEM: LASERS & PROJECTILES
-// ====================================
-
-function createLaserTexture(scene) {
-    const key = 'laserBeam';
-    if (scene.textures.exists(key)) return;
-    const w = 55, h = 10;
-    const canvas = scene.textures.createCanvas(key, w, h);
-    const ctx = canvas.context;
-    ctx.clearRect(0, 0, w, h);
-    let grad = ctx.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    grad.addColorStop(0.35, '#ff0055');
-    grad.addColorStop(1, 'rgba(255, 0, 85, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-    canvas.refresh();
-}
-
-function createUfoProjectileTexture(scene) {
-    const key = 'plasmaBall';
-    if (scene.textures.exists(key)) return;
-    const size = 24;
-    const canvas = scene.textures.createCanvas(key, size, size);
-    const ctx = canvas.context;
-    ctx.clearRect(0, 0, size, size);
-    let grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-    grad.addColorStop(0, '#ffffff');
-    grad.addColorStop(0.4, '#00ffff');
-    grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2); ctx.fill();
-    canvas.refresh();
-}
-
-function fireLaser() {
-    if (gameState.isGameOver || !gameState.isPlaying) return;
-    
-    // Check ammo
-    if (gameState.ammo <= 0) {
-        let now = Date.now();
-        if (!gameState.lastEmptyTime || now - gameState.lastEmptyTime > 800) {
-            gameState.lastEmptyTime = now;
-            AudioEngine._sweep(300, 100, 'sawtooth', 0.05, 0.08); // low-pitched click sound
-            showFloatingText(gameState.rocket.x, gameState.rocket.y - 30, 'NO AMMO! ⚡', '#ff0055');
-        }
-        return;
-    }
-    
-    // 400ms cooldown to keep firing arcadey but fair
-    let now = Date.now();
-    if (gameState.lastLaserTime && now - gameState.lastLaserTime < 400) return;
-    gameState.lastLaserTime = now;
-    
-    gameState.ammo--;
-    updateAmmoDisplay();
-    
-    AudioEngine.laserFire();
-    
-    // Fire laser depending on selected rocket specs
-    const laserSpeed = gameState.selectedRocket === 'red_fury' ? 1450 : 950;
-    let laserColor = 0xffffff;
-    if (gameState.selectedRocket === 'red_fury') laserColor = 0xff2222;
-    else if (gameState.selectedRocket === 'cosmic_pink') laserColor = 0xff00ff;
-    else if (gameState.selectedRocket === 'rocket_rider') laserColor = 0x00ffff;
-    else if (gameState.selectedRocket === 'jetpack_exec') laserColor = 0xffd700;
-
-    if (gameState.selectedRocket === 'jetpack_exec') {
-        const velocitiesY = [0, -180, 180];
-        velocitiesY.forEach(vy => {
-            const laser = gameState.lasers.create(gameState.rocket.x + 45, gameState.rocket.y, 'laserBeam');
-            laser.body.allowGravity = false;
-            laser.body.setVelocity(laserSpeed, vy);
-            laser.setDepth(8);
-            laser.setTint(0xffd700);
-            if (vy < 0) laser.setAngle(-12);
-            if (vy > 0) laser.setAngle(12);
-        });
-    } else {
-        const laser = gameState.lasers.create(gameState.rocket.x + 45, gameState.rocket.y, 'laserBeam');
-        laser.body.allowGravity = false;
-        laser.body.setVelocityX(laserSpeed);
-        laser.setDepth(8);
-        if (laserColor !== 0xffffff) {
-            laser.setTint(laserColor);
-        }
-    }
-}
-
-function shootPlayer(ufo) {
-    if (gameState.isGameOver || !gameState.isPlaying) return;
-    
-    const proj = gameState.ufoProjectiles.create(ufo.x - 30, ufo.y, 'plasmaBall');
-    proj.body.allowGravity = false;
-    proj.setDepth(7);
-    proj.body.setSize(16, 16);
-    
-    // Track player and aim directly towards them
-    const angle = Phaser.Math.Angle.Between(ufo.x, ufo.y, gameState.rocket.x, gameState.rocket.y);
-    const projSpeed = gameState.obstacleSpeed * 1.25;
-    proj.body.setVelocity(Math.cos(angle) * projSpeed, Math.sin(angle) * projSpeed);
-    
-    sceneRef.tweens.add({
-        targets: proj,
-        angle: 360,
-        duration: 800,
-        repeat: -1
-    });
-}
-
-function hitUFO(laser, ufo) {
-    laser.destroy();
-    
-    // Sound & VFX
-    AudioEngine.explosion();
-    createExplosionParticles(ufo.x, ufo.y, 0x00ffff, 24);
-    
-    // Spawn rewarding coins!
-    spawnCoinsAtPosition(ufo.x, ufo.y);
-    
-    // Award score points
-    gameState.score += 15;
-    updateScoreDisplay();
-    showFloatingText(ufo.x, ufo.y - 35, '+15 PTS 👾', '#00ffff');
-    
-    ufo.destroy();
-}
-
-function hitFlyingAsteroid(laser, asteroid) {
-    laser.destroy();
-    
-    AudioEngine.explosion();
-    createExplosionParticles(asteroid.x, asteroid.y, 0x718096, 12);
-    
-    gameState.score += 5;
-    updateScoreDisplay();
-    showFloatingText(asteroid.x, asteroid.y - 30, '+5 PTS ☄️', '#ffd700');
-    
-    asteroid.destroy();
-}
-
-function hitPlanetObstacle(laser, planet) {
-    laser.destroy();
-    
-    if (!planet.active) return;
-    
-    if (typeof planet.health === 'undefined') {
-        planet.health = 3;
-    }
-    
-    planet.health--;
-    
-    // Impact dust/flare particles
-    createExplosionParticles(laser.x, laser.y, 0xff0055, 6);
-    
-    if (planet.health > 0) {
-        // Flash planet red
-        planet.setTint(0xff5555);
-        sceneRef.time.delayedCall(120, () => {
-            if (planet && planet.active) planet.clearTint();
-        });
-        
-        // Wobble planet slightly
-        sceneRef.tweens.add({
-            targets: planet,
-            x: planet.x + Phaser.Math.Between(-3, 3),
-            y: planet.y + Phaser.Math.Between(-3, 3),
-            duration: 60,
-            yoyo: true,
-            repeat: 1
-        });
-        
-        // Impact sound
-        AudioEngine._sweep(350, 180, 'triangle', 0.12, 0.08);
-        
-        // Float current health
-        showFloatingText(planet.x, planet.y - 40, `HP: ${planet.health} ❤️`, '#ff4757');
-    } else {
-        // Destroyed! Trigger explosion particles
-        createExplosionParticles(planet.x, planet.y, 0xff5252, 28);
-        AudioEngine.explosion();
-        
-        // Award Armor (Shield)
-        gameState.shieldEndTime = Date.now() + 5000;
-        if (typeof shieldEffect !== 'undefined' && shieldEffect) {
-            shieldEffect.setVisible(true);
-        }
-        if (AudioEngine.shieldActivate) AudioEngine.shieldActivate();
-        
-        // Award 50 Points!
-        gameState.score += 50;
-        updateScoreDisplay();
-        
-        // Float reward text
-        showFloatingText(planet.x, planet.y - 40, 'PLANET DESTROYED! 💥\n+ARMOR BOOST 🛡️  +50 PTS', '#2ed573');
-        
-        planet.destroy();
-    }
-}
-
 function hitPlayerWithProjectile(rocket, projectile) {
     projectile.destroy();
     
