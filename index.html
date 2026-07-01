@@ -687,18 +687,22 @@
             }, 2500); // Wait 2.5 seconds (2500ms) for loading assets
         })();
 
-        // PLAY Button — show name modal if first time, otherwise launch directly
+        let sessionNameSet = false;
+        
+        // PLAY Button — always show name modal on first play of the session
         document.getElementById('menuPlayBtn')?.addEventListener('click', () => {
-            const existingName = localStorage.getItem('wilifunkPilotName') || '';
-            if (!existingName) {
-                // First time — ask for name
+            if (!sessionNameSet) {
+                // Ask for name every time the page is refreshed
                 const inp = document.getElementById('playerNameInput');
-                if (inp) inp.value = '';
+                if (inp) {
+                    const existingName = localStorage.getItem('wilifunkPilotName') || '';
+                    inp.value = existingName === 'GUEST' ? '' : existingName;
+                }
                 document.getElementById('playerNameModal')?.classList.remove('hidden');
                 setTimeout(() => inp?.focus(), 120);
             } else {
-                // Already named — go straight to game
-                launchWithName(existingName);
+                // Already set for this session — launch directly
+                launchWithName(localStorage.getItem('wilifunkPilotName') || '');
             }
         });
 
@@ -803,6 +807,7 @@
         function launchWithName(name) {
             const finalName = name.trim() || 'GUEST';
             if (name.trim()) setPilotName(finalName);
+            sessionNameSet = true;
             document.getElementById('playerNameModal')?.classList.add('hidden');
             homeMenu.classList.add('hidden');
             gameUI.classList.remove('hidden');
