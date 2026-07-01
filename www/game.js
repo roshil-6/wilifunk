@@ -337,11 +337,62 @@ const AudioEngine = {
     _engineNodes: null,
 
     startAmbient() {
-        // Disabled per user request (no space sound needed)
+        if (this.muted || this._musicInterval) return;
+        const ctx = this._getCtx();
+        this._musicActive = true;
+        
+        // Happy, bouncy C Major scale (C, E, G, A, G, E) for a kids tune
+        const melody = [523.25, 659.25, 783.99, 880.00, 783.99, 659.25]; // C5, E5, G5, A5, G5, E5
+        let step = 0;
+        const tempo = 0.3; // 300ms per note (relaxed, bouncy pace)
+
+        this._musicInterval = setInterval(() => {
+            if (!this._musicActive || this.muted) return;
+            const now = ctx.currentTime;
+            
+            // Plucky Triangle Synth for melody
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.value = melody[step % melody.length];
+            
+            gain.gain.setValueAtTime(0.04, now); // Soft, non-irritating volume
+            gain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 0.8)); // Plucky short note
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + tempo);
+
+            // Simple bouncy sine bass on alternating beats
+            if (step % 2 === 0) {
+                const bassOsc = ctx.createOscillator();
+                const bassGain = ctx.createGain();
+                bassOsc.type = 'sine';
+                bassOsc.frequency.value = 261.63; // C4
+                
+                bassGain.gain.setValueAtTime(0.06, now);
+                bassGain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 1.5));
+                
+                bassOsc.connect(bassGain);
+                bassGain.connect(ctx.destination);
+                
+                bassOsc.start(now);
+                bassOsc.stop(now + (tempo * 2));
+            }
+
+            step++;
+        }, tempo * 1000);
     },
 
     stopAmbient() {
-        // Disabled
+        this._musicActive = false;
+        if (this._musicInterval) {
+            clearInterval(this._musicInterval);
+            this._musicInterval = null;
+        }
     },
 
     startEngineHum() {
