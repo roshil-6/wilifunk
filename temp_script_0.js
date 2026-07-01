@@ -1,0 +1,476 @@
+
+        // DOM references
+        const homeMenu = document.getElementById('homeMenu');
+        const gameUI = document.getElementById('gameUI');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+
+        // Update home coins display
+        window.updateHomeCoins = function() {
+            const coins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const el = document.getElementById('homeCoins');
+            if (el) el.textContent = '🪙 ' + coins;
+            const rocketCoinsEl = document.getElementById('rocketCoins');
+            if (rocketCoinsEl) rocketCoinsEl.textContent = '🪙 ' + coins;
+        }
+        updateHomeCoins();
+
+        // Rocket Selection Rendering
+        window.renderRocketGrid = function() {
+            const grid = document.getElementById('rocketGrid');
+            if (!grid || typeof ROCKETS === 'undefined') return;
+            const totalCoins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const unlockedRockets = JSON.parse(localStorage.getItem('wilifunkUnlockedRockets') || '["pioneer"]');
+            let selectedRocket = localStorage.getItem('wilifunkSelectedRocket');
+            if (!selectedRocket || selectedRocket === 'undefined' || selectedRocket === 'null') {
+                selectedRocket = 'pioneer';
+            }
+            const highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
+
+            grid.innerHTML = ROCKETS.map(r => {
+                const isUnlocked = unlockedRockets.includes(r.id) ||
+                    (r.id === 'voidbreaker' && highScore >= 500);
+                const isSelected = r.id === selectedRocket;
+                const canBuy = r.cost > 0 && totalCoins >= r.cost && !isUnlocked;
+                const isVoidBreaker = r.id === 'voidbreaker';
+
+                let costText;
+                if (isUnlocked) {
+                    costText = `<span class="rocket-unlocked-badge">✓ UNLOCKED</span>`;
+                } else if (isVoidBreaker) {
+                    costText = `<span class="rocket-cost">🏆 Score ≥ 500</span>`;
+                } else {
+                    costText = `<span class="rocket-cost">🪙 ${r.cost}</span>`;
+                }
+
+                let actionBtn = '';
+                if (!isUnlocked && !isVoidBreaker && r.cost > 0) {
+                    actionBtn = `<button class="rocket-buy-btn" ${canBuy ? '' : 'disabled'} onclick="buyRocket('${r.id}')">BUY 🪙${r.cost}</button>`;
+                }
+
+                return `
+                    <div class="rocket-card ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}" 
+                         ${isUnlocked ? `onclick="selectRocket('${r.id}')"` : ''}
+                         id="rocket-card-${r.id}">
+                        <span class="rocket-emoji">${isUnlocked ? r.emoji : '🔒'}</span>
+                        <div class="rocket-name">${r.name}</div>
+                        <div class="rocket-desc">${r.description}</div>
+                        ${costText}
+                        ${actionBtn}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Initialize garage on home screen
+        renderRocketGrid();
+
+        // Select Rocket
+        window.selectRocket = function(id) {
+            localStorage.setItem('wilifunkSelectedRocket', id);
+            if (typeof gameState !== 'undefined') gameState.selectedRocket = id;
+            renderRocketGrid();
+        }
+
+        // Buy Rocket
+        window.buyRocket = function(id) {
+            const totalCoins = parseInt(localStorage.getItem('wilifunkCoins') || '0');
+            const rocket = typeof ROCKETS !== 'undefined' ? ROCKETS.find(r => r.id === id) : null;
+            if (!rocket || totalCoins < rocket.cost) return;
+
+            // Deduct coins
+            const newTotal = totalCoins - rocket.cost;
+            localStorage.setItem('wilifunkCoins', newTotal.toString());
+            if (typeof gameState !== 'undefined') gameState.totalCoins = newTotal;
+
+            // Unlock rocket
+            let unlocked = JSON.parse(localStorage.getItem('wilifunkUnlockedRockets') || '["pioneer"]');
+            if (!unlocked.includes(id)) {
+                unlocked.push(id);
+                localStorage.setItem('wilifunkUnlockedRockets', JSON.stringify(unlocked));
+                if (typeof gameState !== 'undefined') gameState.unlockedRockets = unlocked;
+            }
+
+            // Auto-select
+            selectRocket(id);
+            updateHomeCoins();
+            renderRocketGrid();
+
+            // Play sound
+            if (typeof AudioEngine !== 'undefined') AudioEngine.badgeUnlock();
+        }
+
+        // Game Mode state
+        window.selectedGameMode = 'rocket'; // default 'rocket' or 'streak'
+
+        // Honeypot Gaming Startup loading script
+        (function initLoading() {
+            const loadingPage = document.getElementById('loadingPage');
+            const loadingFill = document.getElementById('loadingFill');
+            const homeMenu = document.getElementById('homeMenu');
+            if (loadingFill) {
+                loadingFill.style.width = '100%';
+            }
+            setTimeout(() => {
+                if (loadingPage) {
+                    loadingPage.style.opacity = '0';
+                    loadingPage.style.transition = 'opacity 0.6s ease';
+                    setTimeout(() => {
+                        loadingPage.classList.add('hidden');
+                        if (homeMenu) homeMenu.classList.remove('hidden');
+                    }, 600);
+                } else {
+                    if (homeMenu) homeMenu.classList.remove('hidden');
+                }
+            }, 500); // reduced loading screen time to 500ms
+        })();
+
+        // Launch from main menu
+        document.getElementById('rocketLaunchBtn')?.addEventListener('click', () => {
+            homeMenu.classList.add('hidden');
+            gameUI.classList.remove('hidden');
+            // Notify Phaser of state start
+            if (typeof startGame === 'function') {
+                startGame();
+            }
+        });
+
+        // Pause/Menu button
+        document.getElementById('pauseBtn')?.addEventListener('click', () => {
+            showHomeMenu();
+        });
+
+        // Mute button
+        const muteBtn = document.getElementById('muteBtn');
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof AudioEngine !== 'undefined' && muteBtn) {
+                muteBtn.textContent = AudioEngine.muted ? '🔇' : '🔊';
+            }
+        });
+        muteBtn?.addEventListener('click', () => {
+            if (typeof AudioEngine !== 'undefined' && muteBtn) {
+                const muted = AudioEngine.toggleMute();
+                muteBtn.textContent = muted ? '🔇' : '🔊';
+            }
+        });
+
+        // Intensity Handling
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityValue = document.getElementById('intensityValue');
+        const intensityTagline = document.getElementById('intensityTagline');
+        const savedIntensity = localStorage.getItem('spaceRocketIntensity') || '25';
+        intensitySlider.value = savedIntensity;
+        intensityValue.textContent = savedIntensity;
+
+        intensitySlider.addEventListener('input', (e) => {
+            const val = e.target.value;
+            intensityValue.textContent = val;
+            localStorage.setItem('spaceRocketIntensity', val);
+            updateIntensityFeedback(val);
+        });
+
+        function updateIntensityFeedback(val) {
+            let feedback = "";
+            let color = "#00ffff";
+            if (val <= 20) {
+                const teases = ["Too scared of the void?", "Grandma mode activated.", "Safe and boring, huh?", "Training wheels on."];
+                feedback = teases[Math.floor(val / 5) % teases.length];
+                color = "#ffd700";
+            } else if (val < 40) {
+                feedback = "Steady as she goes.";
+                color = "#00ffff";
+            } else {
+                const apprec = ["NOW WE'RE TALKING!", "Absolute orbital madness.", "You've got titanium nerves!", "GLORY OR DEATH!"];
+                feedback = apprec[Math.floor((val - 40) / 3) % apprec.length];
+                color = "#ff3366";
+            }
+            intensityTagline.textContent = feedback;
+            intensityTagline.style.color = color;
+            intensityValue.style.color = color;
+        }
+        updateIntensityFeedback(savedIntensity);
+
+        // Restart button
+        document.getElementById('restartBtn')?.addEventListener('click', () => {
+            gameOverOverlay.classList.add('hidden');
+            if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
+                restartGame(sceneRef);
+                if (typeof startGame === 'function') startGame();
+            }
+        });
+
+        // Home button
+        document.getElementById('homeBtn')?.addEventListener('click', showHomeMenu);
+
+        function showHomeMenu() {
+            homeMenu.classList.remove('hidden');
+            gameUI.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            updateHomeCoins();
+            if (typeof updateTagline === 'function') updateTagline();
+            if (typeof restartGame === 'function' && typeof sceneRef !== 'undefined') {
+                restartGame(sceneRef);
+            }
+        }
+
+        // Enhanced Game Over Screen Display
+        window.showGameOver = function (data) {
+            gameOverOverlay.classList.remove('hidden');
+
+            let score, highScore, coins, totalCoins, zone, missions;
+            if (typeof data === 'object') {
+                score = data.score;
+                highScore = data.highScore;
+                coins = data.coins || 0;
+                totalCoins = data.totalCoins || 0;
+                zone = data.zone;
+                missions = data.missions || [];
+            } else {
+                score = arguments[0];
+                highScore = arguments[1];
+                coins = 0;
+                totalCoins = 0;
+                zone = null;
+                missions = [];
+            }
+
+            const isNewRecord = score >= highScore && score > 0;
+
+            // Zone display
+            const zoneEl = document.getElementById('gameOverZone');
+            if (zone && zoneEl) {
+                zoneEl.textContent = `REACHED: ${zone.label}`;
+                zoneEl.style.display = 'block';
+            } else if (zoneEl) {
+                zoneEl.style.display = 'none';
+            }
+
+            // Message
+            document.getElementById('gameOverMessage').textContent =
+                isNewRecord ? 'NEW HIGH SCORE!' : 'Your rocket crashed...';
+
+            // Close call message
+            const closeEl = document.getElementById('gameOverClose');
+            if (closeEl) {
+                const diff = highScore - score;
+                if (diff > 0 && diff <= 5) {
+                    closeEl.textContent = `SO CLOSE — only ${diff} away from your best!`;
+                    closeEl.style.display = 'block';
+                } else {
+                    closeEl.style.display = 'none';
+                }
+            }
+
+            // Stats
+            document.getElementById('gameOverStats').innerHTML =
+                `Score: <strong>${score}</strong> | Best: <strong>${highScore}</strong>`;
+
+            // Coins
+            document.getElementById('coinsEarned').textContent = `🪙 +${coins}`;
+            document.getElementById('coinsTotal').textContent = `Total: ${totalCoins}`;
+
+            // Mission summary
+            const missionItems = document.getElementById('missionSummaryItems');
+            if (missionItems && missions.length > 0) {
+                missionItems.innerHTML = missions.map(m => {
+                    const progress = Math.min(m.progress, m.target);
+                    const isComplete = m.completed;
+                    return `<div class="mission-summary-item ${isComplete ? 'completed' : ''}">
+                        <span>${m.icon} ${m.description}</span>
+                        <span>${isComplete ? '✓' : `${progress}/${m.target}`}</span>
+                    </div>`;
+                }).join('');
+                document.getElementById('missionSummary').style.display = 'block';
+            } else if (document.getElementById('missionSummary')) {
+                document.getElementById('missionSummary').style.display = 'none';
+            }
+        };
+
+        // WhatsApp share
+        function shareWhatsApp() {
+            const score = typeof gameState !== 'undefined' ? gameState.score : 0;
+            const text = encodeURIComponent(`I scored ${score} in WILIFUNK Space Rocket! 🚀 Can you beat me? wilifunkgame.xyz`);
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+        }
+
+        // Dynamic Tagline
+        function updateTagline() {
+            const score = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
+            const tagElement = document.getElementById('taglineText');
+            let text = "";
+            if (score < 20) text = "Your high score is a joke in 3 galaxies.";
+            else if (score < 50) text = "Double digits? Someone's trying hard.";
+            else if (score < 100) text = "Not terrible. But my cat could do better.";
+            else if (score < 200) text = "Finally, a pilot who knows up from down.";
+            else if (score < 500) text = "Okay, you're actually dangerous now.";
+            else text = "The Universe touches its hat to you.";
+            tagElement.textContent = text;
+            tagElement.style.opacity = 1;
+        }
+        updateTagline();
+
+        window.updateBadgesUI = function () {
+            updateTagline();
+            updateHomeCoins();
+        };
+
+        // =======================================================
+        // INTERCEPTING & OVERRIDING DOMELEMENT UPDATES FROM game.js
+        // =======================================================
+        window.ensureHUDElements = function() {
+            // HUD layout is statically defined in index.html to prevent clean slate overrides.
+        };
+
+        window.updateHUDScore = function(score, highScore) {
+            const scoreEl = document.getElementById('hud-score');
+            const highScoreEl = document.getElementById('hud-high-score');
+            if (scoreEl) scoreEl.textContent = 'SCORE: ' + score;
+            if (highScoreEl) highScoreEl.textContent = 'BEST: ' + highScore;
+        };
+
+        window.updateHUDCoins = function(totalCoins, earnedCoins) {
+            const coinsEl = document.getElementById('hud-coins');
+            if (coinsEl) {
+                coinsEl.textContent = '🪙 ' + totalCoins;
+                coinsEl.classList.add('coin-bounce');
+                setTimeout(() => coinsEl.classList.remove('coin-bounce'), 300);
+            }
+        };
+
+        window.updateHUDShield = function(count, target, active) {
+            const shieldBar = document.getElementById('shield-bar-fill');
+            const shieldText = document.getElementById('hud-shield-text');
+            const shieldPanel = document.getElementById('hud-shield-panel');
+            if (!shieldBar || !shieldText) return;
+            
+            if (active) {
+                shieldBar.style.width = '100%';
+                shieldBar.className = 'shield-progress-fill active';
+                shieldText.textContent = 'SHIELD ACTIVE';
+            } else {
+                const pct = (count / target) * 100;
+                shieldBar.style.width = pct + '%';
+                shieldBar.className = 'shield-progress-fill';
+                shieldText.textContent = `STARS: ${count}/${target}`;
+            }
+        };
+
+        window.updateHUDMissions = function(activeMissions) {
+            for (let i = 0; i < 3; i++) {
+                const missionEl = document.getElementById('hud-mission-' + i);
+                if (!missionEl) continue;
+                const mission = activeMissions[i];
+                if (mission) {
+                    const progress = Math.min(mission.progress, mission.target);
+                    const pct = Math.floor((progress / mission.target) * 100);
+                    const statusClass = mission.completed ? 'completed' : '';
+                    
+                    missionEl.innerHTML = `
+                        <div class="hud-mission-item ${statusClass}">
+                            <div class="hud-mission-header">
+                                <span class="hud-mission-desc">${mission.icon} ${mission.description}</span>
+                                <span class="hud-mission-progress-text">${progress}/${mission.target}</span>
+                            </div>
+                            <div class="hud-mission-bar">
+                                <div class="hud-mission-fill" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    missionEl.innerHTML = '';
+                }
+            }
+        };
+
+        window.triggerHUDWarning = function(message, active) {
+            const warningEl = document.getElementById('hud-warning-container');
+            const warningMsg = document.getElementById('warning-msg');
+            if (!warningEl || !warningMsg) return;
+            
+            if (active) {
+                warningMsg.textContent = message;
+                warningEl.classList.add('active');
+            } else {
+                warningEl.classList.remove('active');
+            }
+        };
+
+        window.triggerHUDZone = function(zoneLabel) {
+            const zoneEl = document.getElementById('hud-zone-container');
+            const zoneMsg = document.getElementById('zone-msg');
+            if (!zoneEl || !zoneMsg) return;
+            
+            zoneMsg.textContent = zoneLabel;
+            zoneEl.classList.add('active');
+            
+            setTimeout(() => {
+                zoneEl.classList.remove('active');
+            }, 2500);
+        };
+
+        // Dynamic Cockpit Dashboard instrumentation loop
+        window.thermalTemp = 20;
+        function updateCockpitDashboard() {
+            requestAnimationFrame(updateCockpitDashboard);
+            const dashboard = document.getElementById('cockpit-dashboard');
+            if (!dashboard) return;
+            
+            if (!window.gameState || !window.gameState.isPlaying || window.gameState.isGameOver) {
+                dashboard.style.opacity = '0.4';
+                return;
+            }
+            dashboard.style.opacity = '1';
+
+            // 1. SPEEDOMETER: simulated from obstacle speed & physics velocity
+            let baseSpeed = window.gameState.obstacleSpeed || 100;
+            let yVel = (window.gameState.rocket && window.gameState.rocket.body) ? Math.abs(window.gameState.rocket.body.velocity.y) : 0;
+            let speed = Math.floor(baseSpeed + yVel * 0.15);
+            const speedValEl = document.getElementById('hud-speed-val');
+            if (speedValEl) speedValEl.textContent = speed;
+
+            // 2. ALTIMETER: simulated from rocket position & score distance
+            let rockY = (window.gameState.rocket) ? window.gameState.rocket.y : 300;
+            let baseAlt = Math.floor((760 - rockY) * 2.2);
+            let scoreBonus = (window.gameState.score || 0) * 12;
+            let altitude = Math.max(0, baseAlt + scoreBonus);
+            const altValEl = document.getElementById('hud-alt-val');
+            if (altValEl) altValEl.textContent = altitude.toLocaleString() + 'm';
+
+            // 3. THERMAL TEMP CORE: Rises with thrust (negative velocity.y) and cools down slowly
+            if (window.gameState.rocket && window.gameState.rocket.body) {
+                let isThrusting = window.gameState.rocket.body.velocity.y < -50;
+                if (isThrusting) {
+                    window.thermalTemp = Math.min(100, window.thermalTemp + 1.6);
+                } else {
+                    window.thermalTemp = Math.max(20, window.thermalTemp - 0.5);
+                }
+            } else {
+                window.thermalTemp = 20;
+            }
+
+            const thermalFill = document.getElementById('hud-thermal-fill');
+            if (thermalFill) {
+                thermalFill.style.width = window.thermalTemp + '%';
+                if (window.thermalTemp > 75) {
+                    thermalFill.style.background = 'linear-gradient(90deg, #ff3366, #ff0000)';
+                    thermalFill.style.boxShadow = '0 0 12px rgba(255, 51, 102, 0.8)';
+                } else if (window.thermalTemp > 50) {
+                    thermalFill.style.background = 'linear-gradient(90deg, #ff7800, #ff3366)';
+                    thermalFill.style.boxShadow = '0 0 10px rgba(255, 120, 0, 0.6)';
+                } else {
+                    thermalFill.style.background = 'linear-gradient(90deg, #00d4ff, #00ffff)';
+                    thermalFill.style.boxShadow = '0 0 8px rgba(0, 212, 255, 0.5)';
+                }
+            }
+
+            // 4. OVERHEAT ALERT INDICATOR PANEL
+            const overheatPanel = document.getElementById('hud-overheat-panel');
+            if (overheatPanel) {
+                if (window.thermalTemp > 75) {
+                    overheatPanel.classList.add('alert-active');
+                } else {
+                    overheatPanel.classList.remove('alert-active');
+                }
+            }
+        }
+        updateCockpitDashboard();
+    
