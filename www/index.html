@@ -55,6 +55,58 @@
             
         </div>
 
+        <!-- ====== REVIVE MODAL ====== -->
+        <div id="reviveModal" class="menu-modal hidden" style="z-index: 99999;">
+            <div class="modal-content" style="max-width:380px; text-align: center; border-color: #00ffff; box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);">
+                <h2 class="modal-title" style="color:#00ffff;">&#9888; CRASH DETECTED</h2>
+                <div class="modal-body">
+                    <p style="color:#d8c9f3; font-size:13px; margin-bottom:10px;">Do you want to deploy an emergency shield and continue?</p>
+                    <div id="revivesLeftText" style="color:#ff5bbe; font-size:11px; font-family:'Orbitron', sans-serif; margin-bottom: 20px; font-weight: bold; letter-spacing: 1px;">EXTRA LIVES: 3 / 3</div>
+                    
+                    <div style="display:flex; gap:10px; flex-direction: column; margin-bottom: 16px;">
+                        <button id="reviveCoinBtn" onclick="if(typeof resumeFromRevive === 'function') resumeFromRevive('coins')" style="background:linear-gradient(135deg,#ffd700,#ff8c00);border:none;padding:14px;border-radius:30px;font-family:'Orbitron',sans-serif;font-weight:900;color:#000;cursor:pointer;font-size:14px;letter-spacing:1px;box-shadow:0 0 15px rgba(255,215,0,0.5);">PAY 20 🪙</button>
+                        <button id="reviveAdBtn" onclick="simulateAdWatch()" style="background:linear-gradient(135deg,#00d4ff,#0055ff);border:none;padding:14px;border-radius:30px;font-family:'Orbitron',sans-serif;font-weight:900;color:#fff;cursor:pointer;font-size:14px;letter-spacing:1px;box-shadow:0 0 15px rgba(0,212,255,0.5);">WATCH AD 📺</button>
+                    </div>
+                    
+                    <button id="giveUpBtn" onclick="if(typeof giveUpRevive === 'function') giveUpRevive()" style="background:none;border:none;color:#aaa;font-family:'Sora',sans-serif;font-size:12px;cursor:pointer;text-decoration:underline;">GIVE UP &#10006;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulated Ad Screen -->
+        <div id="simulatedAdScreen" class="hidden" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; z-index:100000; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+            <div style="width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.2); border-top-color: #00ffff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+            <h2 style="color:#00ffff; font-family:'Orbitron', sans-serif; font-size: 16px;">WATCHING SPONSORED TRANSMISSION...</h2>
+            <p id="adTimerText" style="color:#fff; font-family:'Sora', sans-serif; margin-top: 10px;">3</p>
+            <style>
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .disabled-btn { opacity: 0.5; filter: grayscale(100%); cursor: not-allowed !important; pointer-events: none; }
+            </style>
+        </div>
+
+        <script>
+            function simulateAdWatch() {
+                const modal = document.getElementById('reviveModal');
+                const adScreen = document.getElementById('simulatedAdScreen');
+                const timerText = document.getElementById('adTimerText');
+                if(modal) modal.classList.add('hidden');
+                if(adScreen) adScreen.classList.remove('hidden');
+                
+                let timeLeft = 3;
+                if(timerText) timerText.innerText = timeLeft;
+                
+                const interval = setInterval(() => {
+                    timeLeft--;
+                    if(timerText) timerText.innerText = timeLeft;
+                    if(timeLeft <= 0) {
+                        clearInterval(interval);
+                        if(adScreen) adScreen.classList.add('hidden');
+                        if(typeof resumeFromRevive === 'function') resumeFromRevive('ad');
+                    }
+                }, 1000);
+            }
+        </script>
+
         <!-- Game Over Screen -->
         <div id="gameOverOverlay" class="overlay hidden">
             <div class="game-over-content">

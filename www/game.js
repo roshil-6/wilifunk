@@ -2327,6 +2327,31 @@ function updateHomeBadges() {
 // GAME OVER & RESTART
 // ====================================
 function gameOver() {
+    if ((gameState.revivesUsed || 0) < 3 && !gameState.isReviving) {
+        gameState.isReviving = true;
+        sceneRef.physics.world.pause();
+        if (gameState.obstacleTimer) gameState.obstacleTimer.paused = true;
+        if (gameState.asteroidTimer) gameState.asteroidTimer.paused = true;
+        if (gameState.starTimer) gameState.starTimer.paused = true;
+        
+        const reviveModal = document.getElementById('reviveModal');
+        if (reviveModal) {
+            reviveModal.classList.remove('hidden');
+            const revTxt = document.getElementById('revivesLeftText');
+            if (revTxt) revTxt.innerText = `EXTRA LIVES: ${3 - (gameState.revivesUsed || 0)} / 3`;
+            const coinBtn = document.getElementById('reviveCoinBtn');
+            if (coinBtn) {
+                if (gameState.totalCoins >= 20) {
+                    coinBtn.disabled = false;
+                    coinBtn.classList.remove('disabled-btn');
+                } else {
+                    coinBtn.disabled = true;
+                    coinBtn.classList.add('disabled-btn');
+                }
+            }
+        }
+        return;
+    }
     gameState.isGameOver = true;
     gameState.isPlaying = false;
 
@@ -2432,6 +2457,9 @@ window.restartGame = function() {
     gameState.ghostHit = false;
     gameState.scoreMultiplier = 1;
     gameState.gameStartTime = 0;
+    gameState.revivesUsed = 0;
+    gameState.isReviving = false;
+    if (sceneRef && sceneRef.physics && sceneRef.physics.world) sceneRef.physics.world.resume();
     updateAmmoDisplay();
 
     if (bgGraphics) {
@@ -2479,6 +2507,47 @@ window.restartGame = function() {
     document.getElementById('mobileLaserBtn')?.classList.add('hidden');
     
     // Gameplay will be explicitly started by the Launch/Retry buttons
+};
+
+window.resumeFromRevive = function(cost) {
+    if (cost === 'coins' && gameState.totalCoins >= 20) {
+        addCoins(-20); // Deduct 20 coins
+    }
+    gameState.revivesUsed = (gameState.revivesUsed || 0) + 1;
+    gameState.isReviving = false;
+    document.getElementById('reviveModal')?.classList.add('hidden');
+    
+    // Resume physics and timers
+    if (gameState.obstacleTimer) gameState.obstacleTimer.paused = false;
+    if (gameState.asteroidTimer) gameState.asteroidTimer.paused = false;
+    if (gameState.starTimer) gameState.starTimer.paused = false;
+    sceneRef.physics.world.resume();
+
+    // Grant temporary invulnerability & visual effect
+    gameState.isInvincible = true;
+    showFloatingText(gameState.rocket.x, gameState.rocket.y - 30, 'REVIVED! 🛡️', '#00ff88');
+    
+    sceneRef.tweens.add({
+        targets: gameState.rocket, alpha: 0.5, duration: 100, yoyo: true, repeat: 20, // 2 seconds
+        onComplete: () => { gameState.rocket.alpha = 1; gameState.isInvincible = false; }
+    });
+
+    gameState.rocket.setVelocity(0, 0);
+    // Move rocket slightly left to give breathing room
+    gameState.rocket.setX(Math.max(50, gameState.rocket.x - 50));
+    gameState.rocket.setY(300); // Center height
+    
+    // Restart engine sounds
+    AudioEngine.startEngineHum();
+    AudioEngine.startAmbient();
+};
+
+window.giveUpRevive = function() {
+    gameState.isReviving = false;
+    gameState.revivesUsed = 3;
+    document.getElementById('reviveModal')?.classList.add('hidden');
+    sceneRef.physics.world.resume();
+    gameOver();
 };
 
 // ====================================
