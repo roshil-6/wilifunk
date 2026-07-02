@@ -1585,11 +1585,7 @@ button, input, select, textarea {
     100% { transform: rotate(0deg); }
 }
 
-@media (max-width: 950px) and (orientation: portrait) {
-    #orientation-overlay {
-        display: flex;
-    }
-}
+
 
 /* ===== PREMIUM MENU REDESIGN (MATCHING MOCKUP) ===== */
 .home-menu {

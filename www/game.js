@@ -9,8 +9,8 @@
 // ====================================
 const config = {
     type: Phaser.AUTO,
-    width: 1280,
-    height: 720,
+    width: 720,
+    height: 1280,
     parent: 'phaser-game',
     backgroundColor: '#0a0a1a',
     resolution: window.devicePixelRatio || 1,
@@ -1330,7 +1330,7 @@ function create() {
 // CREATE ROCKET
 // ====================================
 function createRocket(scene) {
-    gameState.rocket = scene.physics.add.sprite(150, 300, 'rocket_' + gameState.selectedRocket);
+    gameState.rocket = scene.physics.add.sprite(150, 640, 'rocket_' + gameState.selectedRocket);
     gameState.rocket.setOrigin(0.5, 0.5);
     gameState.rocket.setDepth(10);
     gameState.rocket.setScale(0.5);
@@ -1678,7 +1678,7 @@ function update() {
     }
 
     if (gameState.isPlaying && !gameState.isGameOver) {
-        if (gameState.rocket.y < -40 || gameState.rocket.y >= 760) {
+        if (gameState.rocket.y < -40 || gameState.rocket.y >= 1320) {
             gameOver();
         }
     }
