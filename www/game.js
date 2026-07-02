@@ -3050,6 +3050,7 @@ const ThreeGLBBridge = {
             scene.add(mesh);
 
             console.log('Successfully loaded 3D GLB for: ' + key);
+            if(this.scenes[key]) this.scenes[key].needsUpdate = true;
 
             if (key.startsWith('rocket_') && this.sceneRef) {
                 if (gameState.rocket && 'rocket_' + gameState.selectedRocket === key) {
@@ -3075,7 +3076,8 @@ const ThreeGLBBridge = {
             ctx2d,
             phaserTexture,
             rotateSpeed,
-            size
+            size,
+            needsUpdate: true
         };
     },
 
@@ -3084,6 +3086,9 @@ const ThreeGLBBridge = {
         for (let key in this.scenes) {
             let s = this.scenes[key];
             let mesh = s.getMesh();
+            // SKIP RENDER IF STATIC AND ALREADY RENDERED ONCE
+            if (!s.needsUpdate && (!s.rotateSpeed || (s.rotateSpeed.x === 0 && s.rotateSpeed.y === 0))) continue;
+            s.needsUpdate = false;
             if (mesh) {
                 if (s.rotateSpeed) {
                     if (s.rotateSpeed.y) mesh.rotation.y += s.rotateSpeed.y;
