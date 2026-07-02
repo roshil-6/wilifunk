@@ -9,8 +9,8 @@
 // ====================================
 const config = {
     type: Phaser.AUTO,
-    width: 1280,
-    height: 720,
+    width: 720,
+    height: 1280,
     parent: 'phaser-game',
     backgroundColor: '#0a0a1a',
     resolution: window.devicePixelRatio || 1,
@@ -337,11 +337,63 @@ const AudioEngine = {
     _engineNodes: null,
 
     startAmbient() {
-        // Disabled per user request (no space sound needed)
+        if (this.muted || this._musicInterval) return;
+        const ctx = this._getCtx();
+        this._musicActive = true;
+        
+        // Happy, bouncy C Major scale (C, E, G, A, G, E) for a kids tune
+        // Twinkle Twinkle Little Star (C, C, G, G, A, A, G)
+        const melody = [523.25, 523.25, 783.99, 783.99, 880.00, 880.00, 783.99];
+        let step = 0;
+        const tempo = 0.4; // 400ms per note for a kids lullaby/song pace
+
+        this._musicInterval = setInterval(() => {
+            if (!this._musicActive || this.muted) return;
+            const now = ctx.currentTime;
+            
+            // Plucky Triangle Synth for melody
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.value = melody[step % melody.length];
+            
+            gain.gain.setValueAtTime(0.04, now); // Soft, non-irritating volume
+            gain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 0.8)); // Plucky short note
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + tempo);
+
+            // Simple bouncy sine bass on alternating beats
+            if (step % 2 === 0) {
+                const bassOsc = ctx.createOscillator();
+                const bassGain = ctx.createGain();
+                bassOsc.type = 'sine';
+                bassOsc.frequency.value = 261.63; // C4
+                
+                bassGain.gain.setValueAtTime(0.06, now);
+                bassGain.gain.exponentialRampToValueAtTime(0.001, now + (tempo * 1.5));
+                
+                bassOsc.connect(bassGain);
+                bassGain.connect(ctx.destination);
+                
+                bassOsc.start(now);
+                bassOsc.stop(now + (tempo * 2));
+            }
+
+            step++;
+        }, tempo * 1000);
     },
 
     stopAmbient() {
-        // Disabled
+        this._musicActive = false;
+        if (this._musicInterval) {
+            clearInterval(this._musicInterval);
+            this._musicInterval = null;
+        }
     },
 
     startEngineHum() {
@@ -371,6 +423,9 @@ let gameState = {
     obstacles: null,
     flyingObstacles: null,
     starItems: null,
+    fuelItems: null,
+    fuel: 100,
+    fuelTimer: null,
     stars: [],
     isGameOver: false,
     ammo: 5,
@@ -417,6 +472,9 @@ let bgGraphics;
 let bgTileSprite;
 let coinText;
 let scoreText;
+let fuelBarBg;
+let fuelBarFill;
+let fuelText;
 let highScoreText;
 let meteorText;
 let badgeText;
@@ -453,6 +511,7 @@ function preload() {
     createAsteroidTexture(this);
     createUFOTexture(this);
     createStarItemTexture(this);
+    createFuelItemTexture(this);
     createBlackHoleTexture(this);
     createCoinTexture(this);
     createLaserTexture(this);
@@ -1071,6 +1130,33 @@ function createUFOTexture(scene) {
     }
 }
 
+
+function createFuelItemTexture(scene) {
+    const key = 'fuelItem';
+    if (scene.textures.exists(key)) return;
+    const canvas = scene.textures.createCanvas(key, 32, 32);
+    const ctx = canvas.context;
+    
+    // Draw a clearer fuel canister without relying on roundRect or excessive blur
+    
+    // Outer border/glow
+    ctx.fillStyle = '#00ff88';
+    ctx.fillRect(4, 4, 24, 24);
+    
+    // Inner dark container
+    ctx.fillStyle = '#2d3436';
+    ctx.fillRect(6, 6, 20, 20);
+    
+    // Fuel emoji or text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⛽', 16, 16);
+    
+    scene.textures.get(key).refresh();
+}
+
 function createStarItemTexture(scene) {
     const key = 'starItem';
     if (scene.textures.exists(key)) return;
@@ -1172,7 +1258,10 @@ function create() {
     gameState.obstacles = this.physics.add.group();
     gameState.flyingObstacles = this.physics.add.group();
     gameState.ufos = this.physics.add.group();
+    
     gameState.starItems = this.physics.add.group();
+    gameState.fuelItems = this.physics.add.group();
+
     gameState.blackHoles = this.physics.add.group();
     gameState.coinItems = this.physics.add.group();
     gameState.lasers = this.physics.add.group();
@@ -1187,7 +1276,10 @@ function create() {
     this.physics.add.collider(gameState.rocket, gameState.obstacles, onCollision, null, this);
     this.physics.add.collider(gameState.rocket, gameState.flyingObstacles, onCollision, null, this);
     this.physics.add.collider(gameState.rocket, gameState.ufos, onCollision, null, this);
+    
     this.physics.add.overlap(gameState.rocket, gameState.starItems, collectStar, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.fuelItems, collectFuel, null, this);
+
     this.physics.add.overlap(gameState.rocket, gameState.coinItems, collectCoin, null, this);
     this.physics.add.overlap(gameState.rocket, gameState.ufoProjectiles, hitPlayerWithProjectile, null, this);
     this.physics.add.overlap(gameState.lasers, gameState.ufos, hitUFO, null, this);
@@ -1238,7 +1330,7 @@ function create() {
 // CREATE ROCKET
 // ====================================
 function createRocket(scene) {
-    gameState.rocket = scene.physics.add.sprite(150, 300, 'rocket_' + gameState.selectedRocket);
+    gameState.rocket = scene.physics.add.sprite(150, 640, 'rocket_' + gameState.selectedRocket);
     gameState.rocket.setOrigin(0.5, 0.5);
     gameState.rocket.setDepth(10);
     gameState.rocket.setScale(0.5);
@@ -1354,14 +1446,33 @@ function createUI(scene) {
         .setOrigin(0, 0).setDepth(99).setScrollFactor(0);
     scoreBg.setStrokeStyle(2, 0x00ffff, 0.5);
 
+    
     scoreText = scene.add.text(20 + scorePillW / 2, 18, '0', {
-        fontSize: (isMobile ? 30 : 40) + 'px',
-        fontFamily: "'Orbitron', monospace",
+        fontFamily: 'Orbitron',
+        fontSize: '18px',
         color: '#ffffff',
-        fontStyle: 'bold',
-        stroke: '#001a1a',
-        strokeThickness: 5
-    }).setOrigin(0.5, 0).setDepth(100).setScrollFactor(0);
+        fontStyle: 'bold'
+    }).setOrigin(0.5, 0.5).setDepth(11).setScrollFactor(0);
+
+    // Fuel Gauge HUD
+    fuelBarBg = scene.add.graphics();
+    fuelBarBg.setDepth(10).setScrollFactor(0);
+    fuelBarBg.fillStyle(0x000000, 0.5);
+    fuelBarBg.fillRoundedRect(20, 60, 150, 16, 8);
+    fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+    fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+    
+    fuelText = scene.add.text(20, 42, 'FUEL', {
+        fontFamily: 'Orbitron',
+        fontSize: '10px',
+        color: '#ffffff',
+        fontStyle: 'bold'
+    }).setDepth(11).setScrollFactor(0);
+
+    fuelBarFill = scene.add.graphics();
+    fuelBarFill.setDepth(10).setScrollFactor(0);
+    drawFuelBar(gameState.fuel);
+
 
     highScoreText = scene.add.text(20 + scorePillW / 2, 20 + (isMobile ? 30 : 40), 'HI: ' + gameState.highScore, {
         fontSize: (isMobile ? 11 : 13) + 'px',
@@ -1567,7 +1678,7 @@ function update() {
     }
 
     if (gameState.isPlaying && !gameState.isGameOver) {
-        if (gameState.rocket.y < -40 || gameState.rocket.y >= 760) {
+        if (gameState.rocket.y < -40 || gameState.rocket.y >= 1320) {
             gameOver();
         }
     }
@@ -1730,6 +1841,19 @@ function update() {
             scheduleNextBlackHole();
         }
     });
+
+    if (gameState.isPlaying && !gameState.isGameOver) {
+        gameState.fuel -= 0.03;
+        if (gameState.fuel <= 0) {
+            gameState.fuel = 0;
+            gameState.rocket.body.allowGravity = true;
+            // Cap downward velocity so 3D model doesn't spin wildly
+            if (gameState.rocket.body.velocity.y > 400) {
+                gameState.rocket.body.velocity.y = 400;
+            }
+        }
+        drawFuelBar(gameState.fuel);
+    }
 }
 
 // ====================================
@@ -1742,6 +1866,11 @@ function thrust(pointer) {
         startGame();
         return;
     }
+    if (gameState.fuel <= 0) return;
+    
+    // Drain a bit of fuel per thrust
+    gameState.fuel = Math.max(0, gameState.fuel - 1.0);
+    drawFuelBar(gameState.fuel);
     AudioEngine.thrust();
     AudioEngine.engineRev();
     const rocket = ROCKETS.find(r => r.id === gameState.selectedRocket) || ROCKETS[0];
@@ -1819,6 +1948,8 @@ function startGame() {
     gameState.isPlaying = true;
     gameState.isGameOver = false;
     gameState.score = 0;
+    gameState.fuel = 100;
+    if (fuelBarBg) drawFuelBar(gameState.fuel);
     gameState.coins = 0;
     gameState.nearMissCount = 0;
     gameState.meteorShowerActive = false;
@@ -1861,6 +1992,7 @@ function startGame() {
     // Meteor shower disabled per user request
     // gameState.meteorTimer = sceneRef.time.addEvent({ delay: 20000, callback: triggerMeteorShower, loop: true });
     gameState.starTimer = sceneRef.time.addEvent({ delay: 2000, callback: spawnStar, loop: true });
+    gameState.fuelTimer = sceneRef.time.addEvent({ delay: 3500, callback: spawnFuel, loop: true });
     gameState.difficultyTimer = sceneRef.time.addEvent({ delay: 5000, callback: increaseDifficulty, loop: true });
 
     updateScoreDisplay();
@@ -2068,6 +2200,58 @@ function spawnFlyingAsteroid() {
 
 function spawnUFO() {
     return; // UFOs completely disabled per user request
+}
+
+
+function drawFuelBar(fuel) {
+    if (!fuelBarFill) return;
+    fuelBarFill.clear();
+    const percent = Math.max(0, Math.min(100, fuel)) / 100;
+    const color = percent > 0.3 ? 0x00ff88 : 0xff0055;
+    
+    // Add pulsing glow if critical
+    if (percent <= 0.3) {
+        if (Math.floor(Date.now() / 200) % 2 === 0) {
+            fuelBarBg.lineStyle(2, 0xff0055, 0.8);
+            fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+        } else {
+            fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+            fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+        }
+    } else {
+        fuelBarBg.lineStyle(2, 0xffffff, 0.2);
+        fuelBarBg.strokeRoundedRect(20, 60, 150, 16, 8);
+    }
+
+    fuelBarFill.fillStyle(color, 1);
+    fuelBarFill.fillRoundedRect(22, 62, Math.max(1, 146 * percent), 12, 6);
+}
+
+function spawnFuel() {
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+    const fuel = gameState.fuelItems.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'fuelItem');
+    fuel.body.allowGravity = false;
+    fuel.body.setVelocityX(-gameState.obstacleSpeed * 0.9);
+    fuel.setDepth(5);
+    
+    sceneRef.tweens.add({ targets: fuel, y: fuel.y - 15, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+}
+
+function collectFuel(rocket, fuel) {
+    fuel.destroy();
+    
+    // Small heal if already maxed to reward collecting
+    if (gameState.fuel >= 95) {
+        addScore(5);
+        showFloatingText(fuel.x, fuel.y - 30, '+5 PTS', '#ffd700');
+    }
+    
+    gameState.fuel = Math.min(100, gameState.fuel + 30);
+    drawFuelBar(gameState.fuel);
+    
+    AudioEngine._sweep(600, 1200, 'sine', 0.1, 0.15);
+    createExplosionParticles(fuel.x, fuel.y, 0x00ff88, 12);
+    showFloatingText(fuel.x, fuel.y + 20, '+FUEL ⛽', '#00ff88');
 }
 
 function spawnStar() {
@@ -2294,6 +2478,7 @@ function gameOver() {
     if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
     if (gameState.asteroidTimer) gameState.asteroidTimer.remove();
     if (gameState.starTimer) gameState.starTimer.remove();
+    if (gameState.fuelTimer) gameState.fuelTimer.remove();
     if (gameState.difficultyTimer) gameState.difficultyTimer.remove();
     if (gameState.blackHoleTimer) gameState.blackHoleTimer.remove();
 
@@ -2418,6 +2603,7 @@ window.restartGame = function() {
     gameState.flyingObstacles.clear(true, true);
     gameState.ufos.clear(true, true);
     gameState.starItems.clear(true, true);
+    gameState.fuelItems.clear(true, true);
     gameState.blackHoles.clear(true, true);
     gameState.coinItems.clear(true, true);
     gameState.lasers.clear(true, true);
@@ -3008,6 +3194,9 @@ function fireLaser() {
     gameState.ammo--;
     updateAmmoDisplay();
     
+    gameState.fuel = Math.max(0, gameState.fuel - 10);
+    drawFuelBar(gameState.fuel);
+    
     AudioEngine.laserFire();
     
     // Fire laser depending on selected rocket specs
@@ -3133,16 +3322,22 @@ function hitPlanetObstacle(laser, planet) {
         createExplosionParticles(planet.x, planet.y, 0xff5252, 28);
         AudioEngine.explosion();
         
-        // Award 20 Ammo!
-        gameState.ammo += 20;
-        updateAmmoDisplay();
+        gameState.fuel = 100;
+        drawFuelBar(gameState.fuel);
         
-        // Award 10 Points!
-        gameState.score += 10;
+        // Award Armor (Shield)
+        gameState.shieldEndTime = Date.now() + 5000;
+        if (typeof shieldEffect !== 'undefined' && shieldEffect) {
+            shieldEffect.setVisible(true);
+        }
+        if (AudioEngine.shieldActivate) AudioEngine.shieldActivate();
+        
+        // Award 50 Points!
+        gameState.score += 50;
         updateScoreDisplay();
         
         // Float reward text
-        showFloatingText(planet.x, planet.y - 40, 'PLANET DESTROYED! 💥\n+20 AMMO ⚡  +10 PTS', '#2ed573');
+        showFloatingText(planet.x, planet.y - 40, 'PLANET DESTROYED! 💥\n+ARMOR 🛡️ +FULL TANK ⛽  +50 PTS', '#2ed573');
         
         planet.destroy();
     }
