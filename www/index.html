@@ -26,6 +26,7 @@
             </div>
         </div>        <!-- Mobile Laser Weapon Fire Trigger -->
         <div id="mobileLaserBtn" class="hidden">SHOOT</div>
+        <div id="mobileThrustBtn" class="hidden">THRUST</div>
 
         <div class="cockpit-overlay"></div>
         <div id="phaser-game"></div>
@@ -865,6 +866,7 @@
             homeMenu.classList.add('hidden');
             gameUI.classList.remove('hidden');
             document.getElementById('mobileLaserBtn')?.classList.remove('hidden');
+            document.getElementById('mobileThrustBtn')?.classList.remove('hidden');
             if (typeof startGame === 'function') startGame();
             const instrOverlay = document.getElementById('gameInstructionsOverlay');
             if (instrOverlay) {
@@ -1323,6 +1325,7 @@
             gameUI.classList.add('hidden');
             gameOverOverlay.classList.add('hidden');
             document.getElementById('mobileLaserBtn')?.classList.add('hidden');
+            document.getElementById('mobileThrustBtn')?.classList.add('hidden');
             
             // Populate score & intensity stats in menu
             const bestScore = localStorage.getItem('spaceRocketHighScore') || '0';
