@@ -1305,6 +1305,23 @@ function create() {
             fireLaser();
         });
     }
+
+    const mobileThrustBtn = document.getElementById('mobileThrustBtn');
+    if (mobileThrustBtn) {
+        mobileThrustBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if(gameState.isPlaying && !gameState.isGameOver) {
+                gameState.rocket.body.velocity.y = -350;
+            }
+        }, { passive: false });
+        mobileThrustBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if(gameState.isPlaying && !gameState.isGameOver) {
+                gameState.rocket.body.velocity.y = -350;
+            }
+        });
+    }
+
     
     this.scale.on('resize', function (gameSize) {
         if (bgGraphics) {
