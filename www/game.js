@@ -13,7 +13,7 @@ const config = {
     height: 1280,
     parent: 'phaser-game',
     backgroundColor: '#0a0a1a',
-    resolution: Math.min(1.5, window.devicePixelRatio || 1),
+    resolution: 1,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

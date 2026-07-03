@@ -2119,6 +2119,41 @@ button, input, select, textarea {
 }
 
 /* Circular Mobile Shoot Button */
+
+/* Circular Mobile Thrust Button */
+#mobileThrustBtn {
+    position: absolute;
+    bottom: 25px;
+    left: 25px;
+    width: 76px;
+    height: 76px;
+    background: radial-gradient(circle, #00ffaa 20%, #008855 90%);
+    border: 3px solid #88ffcc;
+    border-radius: 50% !important;
+    box-shadow: 0 0 20px rgba(0, 255, 170, 0.8), inset 0 0 8px rgba(255, 255, 255, 0.4);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    color: #ffffff;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 11px;
+    letter-spacing: 1px;
+    z-index: 99999;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.05s ease, box-shadow 0.1s ease;
+}
+#mobileThrustBtn:not(.hidden) {
+    display: flex;
+}
+#mobileThrustBtn:active {
+    transform: scale(0.88);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.5);
+    background: radial-gradient(circle, #00dd88 20%, #006644 90%);
+}
+
 #mobileLaserBtn {
     position: absolute;
     bottom: 25px;

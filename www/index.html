@@ -8,6 +8,7 @@
     <meta name="description"
         content="spaceroot — dodge obstacles, collect stars, unlock rockets. Survive the cosmic drift.">
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="honeypot_logo.png">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -25,6 +26,7 @@
             </div>
         </div>        <!-- Mobile Laser Weapon Fire Trigger -->
         <div id="mobileLaserBtn" class="hidden">SHOOT</div>
+        <div id="mobileThrustBtn" class="hidden">THRUST</div>
 
         <div class="cockpit-overlay"></div>
         <div id="phaser-game"></div>
@@ -864,6 +866,7 @@
             homeMenu.classList.add('hidden');
             gameUI.classList.remove('hidden');
             document.getElementById('mobileLaserBtn')?.classList.remove('hidden');
+            document.getElementById('mobileThrustBtn')?.classList.remove('hidden');
             if (typeof startGame === 'function') startGame();
             const instrOverlay = document.getElementById('gameInstructionsOverlay');
             if (instrOverlay) {
@@ -1322,6 +1325,7 @@
             gameUI.classList.add('hidden');
             gameOverOverlay.classList.add('hidden');
             document.getElementById('mobileLaserBtn')?.classList.add('hidden');
+            document.getElementById('mobileThrustBtn')?.classList.add('hidden');
             
             // Populate score & intensity stats in menu
             const bestScore = localStorage.getItem('spaceRocketHighScore') || '0';
