@@ -13,7 +13,7 @@ const config = {
     height: 1280,
     parent: 'phaser-game',
     backgroundColor: '#0a0a1a',
-    resolution: window.devicePixelRatio || 1,
+    resolution: Math.min(1.5, window.devicePixelRatio || 1),
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
@@ -1354,8 +1354,8 @@ gameState.exhaust = scene.add.particles(0, 0, 'flare', {
         tint: [0x00d2ff, 0x0077ff, 0xff8800, 0xffcc00],
         lifespan: 380,
         blendMode: 'ADD',
-        frequency: 7,
-        quantity: 4,
+        frequency: 25,
+        quantity: 1,
         follow: gameState.rocket,
         followOffset: exhaustOffset
     });
@@ -1370,8 +1370,8 @@ gameState.exhaust = scene.add.particles(0, 0, 'flare', {
         tint: [0xffffff, 0x88ddff, 0xffeeaa],
         lifespan: 180,
         blendMode: 'ADD',
-        frequency: 12,
-        quantity: 2,
+        frequency: 50,
+        quantity: 1,
         follow: gameState.rocket,
         followOffset: exhaustGlowOffset
     });
