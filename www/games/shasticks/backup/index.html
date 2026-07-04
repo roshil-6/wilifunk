@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stick Fighter — Monochrome</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bw-white:#f2f2f2;
+    --bw-gray:#9a9a9a;
+    --bw-dark:#111111;
+    --bw-black:#000000;
+  }
+  html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;font-family:'Oswald',Arial,sans-serif;}
+  #game-wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  canvas{image-rendering:optimizeSpeed;filter:grayscale(1) contrast(1.08) brightness(1.02);}
+
+  /* cinematic overlays sit above the canvas, ignore pointer events */
+  #vignette{
+    position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.65) 100%);
+    mix-blend-mode:multiply;
+  }
+  #scanlines{
+    position:absolute;inset:0;pointer-events:none;opacity:0.06;
+    background:repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px);
+  }
+  #grain{
+    position:absolute;inset:0;pointer-events:none;opacity:0.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size:140px 140px;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <div id="vignette"></div>
+  <div id="scanlines"></div>
+  <div id="grain"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<script>
+/* =========================================================
+   STICK FIGHTER — MONOCHROME EDITION
+   Procedural stickman fighters, WebGL post-FX (grayscale/glow),
+   combo system, arcade levels, ranks, streaks, coin retry.
+
+   NOTE ON SAVE DATA: coins / rank / level / streak are kept in
+   Phaser's registry (in-memory) for this build, so progress resets
+   on page reload. When you move this into your real project
+   (Antigravity / Capacitor build), swap GameState's get/set calls
+   for localStorage or Capacitor Preferences to persist across
+   app launches.
+   ========================================================= */
+
+const W = 960, H = 540;
+const GROUND_Y = 430;
+const MONO = { p1: 0xffffff, p2: 0xc9c9c9, dim: 0x777777 };
+
+// ---------- Persistent-ish game state (in-memory this session) ----------
+const RANKS = [
+  {name:'ROOKIE',     xp:0},
+  {name:'CONTENDER',  xp:120},
+  {name:'FIGHTER',    xp:280},
+  {name:'WARRIOR',    xp:500},
+  {name:'CHAMPION',   xp:800},
+  {name:'GRANDMASTER',xp:1200},
+  {name:'LEGEND',     xp:1800}
+];
+
+const GameState = {
+  coins: 100,
+  xp: 0,
+  stage: 1,
+  streak: 0,
+  bestStreak: 0,
+  level(){ return 1 + Math.floor(this.xp/100); },
+  rank(){
+    let r = RANKS[0];
+    for(const tier of RANKS){ if(this.xp>=tier.xp) r=tier; }
+    return r.name;
+  },
+  addXP(n){ this.xp += n; },
+  addCoins(n){ this.coins = Math.max(0, this.coins+n); }
+};
+
+// ---------- Pose definitions ----------
+const POSES = {
+  idle:   { armF:{a1:15, a2:20},  armB:{a1:-10,a2:15}, legF:{a1:8, a2:6},   legB:{a1:-8, a2:6},  torso:4  },
+  block:  { armF:{a1:70, a2:60},  armB:{a1:60, a2:70}, legF:{a1:15,a2:10},  legB:{a1:-5, a2:10}, torso:-6 },
+  punch:  { armF:{a1:90, a2:2},   armB:{a1:-15,a2:15}, legF:{a1:20,a2:8},   legB:{a1:-15,a2:6},  torso:14 },
+  kick:   { armF:{a1:-20,a2:20},  armB:{a1:20, a2:20}, legF:{a1:95,a2:4},   legB:{a1:-10,a2:6},  torso:-10 },
+  special:{ armF:{a1:110,a2:0},   armB:{a1:110,a2:0},  legF:{a1:25,a2:10},  legB:{a1:-20,a2:6},  torso:18 },
+  jump:   { armF:{a1:-30,a2:30},  armB:{a1:30,a2:30},  legF:{a1:40,a2:60},  legB:{a1:-30,a2:50}, torso:0 },
+  hit:    { armF:{a1:-40,a2:20},  armB:{a1:40,a2:20},  legF:{a1:10,a2:10},  legB:{a1:-25,a2:15}, torso:-16 },
+  ko:     { armF:{a1:80,a2:10},   armB:{a1:-80,a2:10}, legF:{a1:70,a2:5},   legB:{a1:-70,a2:5},  torso:0  }
+};
+
+// named combo strings (sequence of clean-landed hit types, in order)
+const COMBOS = [
+  { seq:['punch','punch','kick'],  name:'TRIPLE STRIKE', bonus:10 },
+  { seq:['kick','kick','punch'],   name:'SPIN COMBO',    bonus:10 },
+  { seq:['punch','kick','special'],name:'FINISHER',      bonus:22 },
+  { seq:['punch','punch','punch'], name:'FURY FISTS',    bonus:15 },
+  { seq:['kick','kick','kick'],    name:'CYCLONE KICK',  bonus:18 },
+  { seq:['punch','kick','punch','kick'], name:'RHYTHM BREAKER', bonus:25 }
+];
+
+function lerpPose(p1, p2, t){
+  const L=(a,b)=>a+(b-a)*t;
+  const r={};
+  for(const k of ['armF','armB','legF','legB']){ r[k] = { a1: L(p1[k].a1,p2[k].a1), a2: L(p1[k].a2,p2[k].a2) }; }
+  r.torso = L(p1.torso,p2.torso);
+  return r;
+}
+
+function drawLimb(g, ox, oy, ang1, len1, ang2, len2, facing){
+  const a1 = Phaser.Math.DegToRad(ang1);
+  const jx = ox + facing*Math.sin(a1)*len1;
+  const jy = oy + Math.cos(a1)*len1;
+  const a2 = Phaser.Math.DegToRad(ang1+ang2);
+  const ex = jx + facing*Math.sin(a2)*len2;
+  const ey = jy + Math.cos(a2)*len2;
+  g.lineBetween(ox,oy,jx,jy);
+  g.lineBetween(jx,jy,ex,ey);
+  return {x:ex,y:ey};
+}
+
+// ---------- Fighter ----------
+class Fighter {
+  constructor(scene, x, color, facing, tag, statMods){
+    this.scene = scene;
+    this.x = x; this.y = GROUND_Y;
+    this.vx = 0; this.vy = 0;
+    this.facing = facing;
+    this.color = color;
+    this.tag = tag;
+    this.mods = Object.assign({hpMult:1, dmgMult:1, speedMult:1}, statMods||{});
+    this.maxHealth = 100*this.mods.hpMult;
+    this.health = this.maxHealth;
+    this.meter = 0;
+    this.state = 'idle';
+    this.stateTimer = 0;
+    this.hasHit = false;
+    this.walkT = 0;
+    this.hitCooldown = 0;
+    this.comboChainCount = 0;
+    this.lastLandTime = 0;
+    this.actionLog = [];
+    this.currentPose = POSES.idle;
+    this.g = scene.add.graphics();
+    this.g.setDepth(5);
+  }
+
+  get rangeBox(){ return { punch:62, kick:78, special:105 }[this.state] || 0; }
+
+  startAction(state, duration){ this.state=state; this.stateTimer=duration; this.hasHit=false; }
+  isBusy(){ return ['punch','kick','special','hit','ko'].includes(this.state); }
+
+  takeHit(dmg, knock){
+    if(this.state==='ko') return;
+    this.health = Math.max(0, this.health - dmg);
+    this.vx = knock;
+    this.startAction('hit', 260);
+    this.hitCooldown = 300;
+    this.comboChainCount = 0; // my combo breaks when I get hit
+    if(this.health<=0){ this.state='ko'; this.stateTimer=99999; }
+  }
+
+  logAction(type){
+    this.actionLog.push(type);
+    if(this.actionLog.length>4) this.actionLog.shift();
+  }
+
+  checkNamedCombo(){
+    for(const c of COMBOS){
+      const tail = this.actionLog.slice(-c.seq.length);
+      if(tail.length===c.seq.length && tail.every((v,i)=>v===c.seq[i])){
+        return c;
+      }
+    }
+    return null;
+  }
+
+  update(dt, input, opponent){
+    if(this.state==='jump' || this.vy!==0 || this.y<GROUND_Y){
+      this.vy += 1400*dt;
+      this.y += this.vy*dt;
+      if(this.y>=GROUND_Y){ this.y=GROUND_Y; this.vy=0; if(this.state==='jump') this.state='idle'; }
+    }
+
+    if(this.stateTimer>0){
+      this.stateTimer -= dt*1000;
+      if(this.stateTimer<=0 && this.state!=='ko'){
+        if(['punch','kick','special'].includes(this.state) && !this.hasHit){
+          this.comboChainCount = 0; // whiffed attack breaks the chain
+        }
+        this.state='idle';
+        this.vx *= 0.2;
+      }
+    }
+    if(this.hitCooldown>0) this.hitCooldown -= dt*1000;
+    if(this.comboChainCount>0 && this.scene.time.now-this.lastLandTime>900) this.comboChainCount=0;
+
+    if(this.state==='ko'){ this.vx=0; this.render(); return; }
+
+    this.vx *= 0.85;
+    this.x += this.vx*dt;
+    this.x = Phaser.Math.Clamp(this.x, 40, W-40);
+
+    if(!this.isBusy()) this.facing = opponent.x > this.x ? 1 : -1;
+
+    if(!this.isBusy() && this.y>=GROUND_Y){
+      let moving=false;
+      const spd = 220*this.mods.speedMult;
+      if(input.left()){ this.x -= spd*dt; moving=true; }
+      if(input.right()){ this.x += spd*dt; moving=true; }
+      this.x = Phaser.Math.Clamp(this.x, 40, W-40);
+
+      if(input.jump()){ this.vy=-560; this.state='jump'; this.stateTimer=0; }
+      else if(input.block()){ this.state='block'; }
+      else if(input.punch()){ this.startAction('punch',260); }
+      else if(input.kick()){ this.startAction('kick',380); }
+      else if(input.special() && this.meter>=100){ this.meter=0; this.startAction('special',480); }
+      else { this.state = moving ? 'walk' : 'idle'; }
+    }
+
+    if(['punch','kick','special'].includes(this.state) && !this.hasHit){
+      const durations = {punch:260,kick:380,special:480};
+      const progress = 1 - Math.max(0,this.stateTimer)/durations[this.state];
+      const activeWindow = this.state==='punch' ? [0.35,0.65] : this.state==='kick' ? [0.4,0.7] : [0.3,0.6];
+      if(progress>=activeWindow[0] && progress<=activeWindow[1]){
+        const dist = Math.abs(opponent.x-this.x);
+        const facingRight = (opponent.x-this.x)*this.facing>0;
+        if(dist<=this.rangeBox && facingRight && opponent.hitCooldown<=0){
+          this.hasHit = true;
+          let dmg = {punch:6, kick:11, special:22}[this.state] * this.mods.dmgMult;
+          let knock = this.facing*(this.state==='special'?260:140);
+
+          if(opponent.state==='block'){
+            dmg = Math.round(dmg*0.2);
+            knock *= 0.3;
+            opponent.meter = Math.min(100, opponent.meter+3);
+            this.comboChainCount = 0;
+            opponent.takeHit(dmg, knock);
+          } else {
+            this.meter = Math.min(100, this.meter + (this.state==='special'?0:10));
+            this.comboChainCount++;
+            this.lastLandTime = this.scene.time.now;
+            this.logAction(this.state);
+            const chainMult = 1 + Math.min(0.5, (this.comboChainCount-1)*0.12);
+            dmg = Math.round(dmg*chainMult);
+
+            const combo = this.checkNamedCombo();
+            if(combo){ dmg += combo.bonus; this.actionLog=[]; }
+
+            opponent.takeHit(dmg, knock);
+            this.scene.onHitLanded(this, opponent, dmg, this.comboChainCount, combo);
+          }
+        }
+      }
+    }
+
+    this.render();
+  }
+
+  render(){
+    const g = this.g;
+    g.clear();
+    const facing = this.facing;
+    const ox = this.x, oy = this.y;
+    const HIP_H=52, SH_H=88, HEAD_R=11, LEN1=24, LEN2=24;
+
+    let targetPose;
+    if(this.state==='idle'){ targetPose = POSES.idle; }
+    else if(this.state==='walk'){
+      this.walkT += 0.014*Math.abs(this.vx||1)*0.15 + 0.18;
+      const t=(Math.sin(this.walkT*8)+1)/2;
+      targetPose = lerpPose(
+        {armF:{a1:-15,a2:10},armB:{a1:15,a2:10},legF:{a1:-20,a2:8},legB:{a1:20,a2:8},torso:2},
+        {armF:{a1:15,a2:10}, armB:{a1:-15,a2:10},legF:{a1:20,a2:8}, legB:{a1:-20,a2:8},torso:2},
+        t
+      );
+    } else { targetPose = POSES[this.state] || POSES.idle; }
+
+    // Smooth movement interpolation
+    this.currentPose = lerpPose(this.currentPose, targetPose, 0.35);
+    const pose = this.currentPose;
+
+    const bobY = this.state==='idle' ? Math.sin(this.scene.time.now/280)*2 : 0;
+    const hipY = oy-HIP_H+bobY, shY = oy-SH_H+bobY, headY = shY-HEAD_R-14;
+    const lean = Phaser.Math.DegToRad(pose.torso)*facing;
+    const shX = ox + Math.sin(lean)*10;
+
+    g.lineStyle(6, this.color, 1);
+    g.lineCap='round';
+
+    if(this.state==='ko'){
+      const midY=oy-14;
+      g.lineBetween(ox-40*facing, midY, ox+40*facing, midY);
+      drawLimb(g, ox+40*facing, midY, 80, LEN1, 10, LEN2, facing);
+      drawLimb(g, ox+40*facing, midY, -60, LEN1, -10, LEN2, facing);
+      drawLimb(g, ox-40*facing, midY, 100, LEN1, 5, LEN2, -facing);
+      drawLimb(g, ox-40*facing, midY, -100, LEN1, -5, LEN2, -facing);
+      g.fillStyle(this.color,1);
+      g.fillCircle(ox-50*facing, midY, HEAD_R);
+      return;
+    }
+
+    drawLimb(g, shX, shY, pose.armB.a1, LEN1, pose.armB.a2, LEN2, facing);
+    drawLimb(g, ox, hipY, pose.legB.a1, LEN1, pose.legB.a2, LEN2, facing);
+    g.lineBetween(ox, hipY, shX, shY);
+    drawLimb(g, ox, hipY, pose.legF.a1, LEN1, pose.legF.a2, LEN2, facing);
+    const hand = drawLimb(g, shX, shY, pose.armF.a1, LEN1, pose.armF.a2, LEN2, facing);
+
+    g.fillStyle(this.color,1);
+    g.fillCircle(shX+Math.sin(lean)*4, headY, HEAD_R);
+
+    if((this.state==='punch'||this.state==='special') && !this.hasHit){
+      const durations={punch:260,special:480};
+      const p=1-this.stateTimer/durations[this.state];
+      if(p>0.25 && p<0.7){
+        g.fillStyle(0xffffff,0.9);
+        g.fillCircle(hand.x, hand.y, this.state==='special'?14:7);
+      }
+    }
+  }
+}
+
+// ---------- Monochrome Arena (big layered mountains) ----------
+function drawArena(scene){
+  const g = scene.add.graphics();
+  g.setDepth(0);
+
+  // night sky gradient: black at top -> soft gray glow near horizon
+  g.fillGradientStyle(0x050505,0x050505,0x3a3a3a,0x3a3a3a,1);
+  g.fillRect(0,0,W,H-90);
+
+  // moon with soft glow rings
+  const moonX=W-150, moonY=90;
+  for(let r=70;r>18;r-=10){ g.fillStyle(0xffffff, 0.02); g.fillCircle(moonX,moonY,r); }
+  g.fillStyle(0xf4f4f4,1); g.fillCircle(moonX,moonY,20);
+
+  // far mega-mountains (large, hazy, light gray)
+  g.fillStyle(0x555555,0.55);
+  g.fillTriangle(-40,H-90, 260,H-330, 560,H-90);
+  g.fillTriangle(340,H-90, 700,H-380, 1040,H-90);
+
+  // mid mountains (darker, jagged, closer)
+  g.fillStyle(0x333333,0.85);
+  g.fillTriangle(-60,H-90, 180,H-230, 420,H-90);
+  g.fillTriangle(300,H-90, 560,H-270, 820,H-90);
+  g.fillTriangle(680,H-90, 900,H-210, 1040,H-90);
+
+  // atmospheric fog band
+  g.fillStyle(0xcccccc,0.06);
+  g.fillRect(0,H-190,W,90);
+
+  // pagoda silhouettes (near, pure black)
+  const pagoda=(px)=>{
+    g.fillStyle(0x000000,1);
+    for(let i=0;i<3;i++){
+      g.fillTriangle(px-40+i*6,H-90-40-i*30, px+40-i*6,H-90-40-i*30, px,H-90-70-i*30);
+      g.fillRect(px-4,H-90-40-i*30,8,30);
+    }
+  };
+  pagoda(90); pagoda(870);
+
+  // ground
+  g.fillStyle(0x141414,1); g.fillRect(0,H-90,W,90);
+  g.fillStyle(0x000000,1); g.fillRect(0,H-90,W,6);
+
+  // subtle stone floor lines
+  g.lineStyle(1,0x2a2a2a,0.6);
+  for(let i=0;i<8;i++) g.lineBetween(i*140,H-90,i*140-40,H);
+}
+
+// ---------- HUD helper ----------
+function topBarText(scene){
+  const s = `LV.${GameState.level()}  |  ${GameState.rank()}  |  COINS ${GameState.coins}  |  STREAK ${GameState.streak} (BEST ${GameState.bestStreak})`;
+  return scene.add.text(W/2,6,s,{fontFamily:'Oswald',fontSize:'13px',color:'#dddddd'}).setOrigin(0.5,0).setDepth(30);
+}
+
+// ---------- Fight Scene ----------
+class FightScene extends Phaser.Scene {
+  constructor(){ super('fight'); }
+  init(data){ this.vsCPU = data.vsCPU; this.arcade = !!data.arcade; }
+
+  create(){
+    drawArena(this);
+    // this.cameras.main.postFX.addColorMatrix().grayscale(1); // Removed: Handled by CSS filter now
+
+    const stageMods = this.arcade ? {
+      hpMult: 1 + (GameState.stage-1)*0.05,
+      dmgMult: 1 + (GameState.stage-1)*0.04,
+      speedMult: 1 + Math.min(0.3,(GameState.stage-1)*0.02)
+    } : {};
+
+    this.p1 = new Fighter(this, 300, MONO.p1, 1, 'P1');
+    this.p2 = new Fighter(this, 660, MONO.p2, -1, 'P2', stageMods);
+
+    this.keys = this.input.keyboard.addKeys({
+      a:'A', d:'D', w:'W', s:'S', f:'F', g:'G', h:'H',
+      left:'LEFT', right:'RIGHT', up:'UP', down:'DOWN',
+      n1:'NUMPAD_ONE', n2:'NUMPAD_TWO', n3:'NUMPAD_THREE'
+    });
+
+    this.timeLeft = 60;
+    this.roundOver = false;
+    this.hitStop = 0;
+    this.comboTexts = [];
+    this.mobileKeys = { left:false, right:false, up:false, down:false, punch:false, kick:false, special:false };
+
+    this.buildHUD();
+
+    this.timerEvent = this.time.addEvent({
+      delay:1000, loop:true,
+      callback: ()=>{ if(this.roundOver||this.hitStop>0) return; this.timeLeft--; if(this.timeLeft<=0){ this.timeLeft=0; this.endRound(); } }
+    });
+  }
+
+  buildHUD(){
+    const barW=300, barH=16;
+    this.p1BarBg=this.add.rectangle(20+barW/2,44,barW,barH,0x1a1a1a).setOrigin(0.5).setDepth(10).setStrokeStyle(1,0x555555);
+    this.p1Bar=this.add.rectangle(20,44,barW,barH,0xf2f2f2).setOrigin(0,0.5).setDepth(11);
+    this.p1MeterBg=this.add.rectangle(20+barW/2,64,barW,9,0x1a1a1a).setOrigin(0.5).setDepth(10).setStrokeStyle(1,0x444444);
+    this.p1Meter=this.add.rectangle(20,64,0,9,0xaaaaaa).setOrigin(0,0.5).setDepth(11);
+    this.add.text(20,22,'PLAYER 1',{fontFamily:'Bebas Neue',fontSize:'16px',color:'#ffffff'}).setDepth(11);
+
+    this.p2BarBg=this.add.rectangle(W-20-barW/2,44,barW,barH,0x1a1a1a).setOrigin(0.5).setDepth(10).setStrokeStyle(1,0x555555);
+    this.p2Bar=this.add.rectangle(W-20,44,barW,barH,0xf2f2f2).setOrigin(1,0.5).setDepth(11);
+    this.p2MeterBg=this.add.rectangle(W-20-barW/2,64,barW,9,0x1a1a1a).setOrigin(0.5).setDepth(10).setStrokeStyle(1,0x444444);
+    this.p2Meter=this.add.rectangle(W-20,64,0,9,0xaaaaaa).setOrigin(1,0.5).setDepth(11);
+    const p2name = this.arcade ? `LEVEL ${GameState.stage} CPU` : 'PLAYER 2';
+    this.add.text(W-20,22,p2name,{fontFamily:'Bebas Neue',fontSize:'16px',color:'#ffffff'}).setOrigin(1,0).setDepth(11);
+
+    this.timerText=this.add.text(W/2,30,'60',{fontFamily:'Bebas Neue',fontSize:'30px',color:'#ffffff'}).setOrigin(0.5,0).setDepth(11);
+    topBarText(this);
+
+    const hintStyle={fontFamily:'Oswald',fontSize:'12px',color:'#999999'};
+    this.add.text(10,H-20,'P1: A/D move  W jump  S block  F punch  G kick  H special',hintStyle).setDepth(11);
+    const p2label = this.vsCPU ? 'CPU controlled' : 'P2: arrows move  up jump  down block  Numpad 1/2/3';
+    this.add.text(W-10,H-20,p2label,hintStyle).setOrigin(1,0).setDepth(11);
+
+    this.resultText=this.add.text(W/2,H/2-60,'',{fontFamily:'Bebas Neue',fontSize:'50px',color:'#ffffff'}).setOrigin(0.5).setDepth(20).setStroke('#000',6);
+    this.buildMobileControls();
+  }
+
+  buildMobileControls(){
+    if(!this.sys.game.device.os.android && !this.sys.game.device.os.iOS) return;
+    
+    const addBtn = (x, y, r, label, key) => {
+      const c = this.add.circle(x, y, r, 0xffffff, 0.1).setInteractive().setDepth(100).setStrokeStyle(2, 0xffffff, 0.3);
+      this.add.text(x, y, label, {fontFamily:'Oswald', fontSize: (r*0.6)+'px', color:'#ffffff'}).setOrigin(0.5).setDepth(101);
+      c.on('pointerdown', ()=>{
+         if(key==='left' || key==='right' || key==='down') this.mobileKeys[key]=true;
+         else this.mobileKeys[key]=true; // one-shot triggers
+         c.setFillStyle(0xffffff, 0.3);
+      });
+      c.on('pointerup', ()=>{
+         if(key==='left' || key==='right' || key==='down') this.mobileKeys[key]=false;
+         c.setFillStyle(0xffffff, 0.1);
+      });
+      c.on('pointerout', ()=>{
+         if(key==='left' || key==='right' || key==='down') this.mobileKeys[key]=false;
+         c.setFillStyle(0xffffff, 0.1);
+      });
+    };
+    
+    // D-Pad Left side
+    addBtn(70, H-70, 35, 'L', 'left');
+    addBtn(160, H-70, 35, 'R', 'right');
+    addBtn(115, H-140, 35, 'J', 'up');
+    addBtn(115, H-70, 35, 'B', 'down');
+    
+    // Actions Right side
+    addBtn(W-160, H-70, 42, 'P', 'punch');
+    addBtn(W-70, H-70, 42, 'K', 'kick');
+    addBtn(W-115, H-150, 42, 'S', 'special');
+  }
+
+  onHitLanded(attacker, defender, dmg, chainCount, combo){
+    // screen shake + hit-stop for impact feel
+    const big = attacker.state==='special';
+    this.cameras.main.shake(big?180:100, big?0.012:0.006);
+    this.hitStop = big ? 90 : 45;
+
+    // glow flash on the attacker
+    const fx = attacker.g.postFX.addGlow(0xffffff, 0, 0.6, false, 1, 10);
+    this.time.delayedCall(150, ()=>{ try{ attacker.g.postFX.remove(fx); }catch(e){} });
+
+    // floating combo text
+    if(chainCount>=2 || combo){
+      const label = combo ? combo.name : `${chainCount} HIT COMBO`;
+      const t = this.add.text(defender.x, defender.y-160, label, {
+        fontFamily:'Bebas Neue', fontSize: combo?'26px':'20px', color:'#ffffff'
+      }).setOrigin(0.5).setDepth(25).setStroke('#000',4);
+      this.tweens.add({ targets:t, y:t.y-30, alpha:0, duration:700, onComplete:()=>t.destroy() });
+    }
+  }
+
+  p1Input(){
+    return {
+      left:()=>this.keys.a.isDown || this.mobileKeys.left, 
+      right:()=>this.keys.d.isDown || this.mobileKeys.right,
+      jump:()=>Phaser.Input.Keyboard.JustDown(this.keys.w) || this.mobileKeys.up,
+      block:()=>this.keys.s.isDown || this.mobileKeys.down,
+      punch:()=>Phaser.Input.Keyboard.JustDown(this.keys.f) || this.mobileKeys.punch,
+      kick:()=>Phaser.Input.Keyboard.JustDown(this.keys.g) || this.mobileKeys.kick,
+      special:()=>Phaser.Input.Keyboard.JustDown(this.keys.h) || this.mobileKeys.special,
+    };
+  }
+  p2Input(){
+    return {
+      left:()=>this.keys.left.isDown, right:()=>this.keys.right.isDown,
+      jump:()=>Phaser.Input.Keyboard.JustDown(this.keys.up),
+      block:()=>this.keys.down.isDown,
+      punch:()=>Phaser.Input.Keyboard.JustDown(this.keys.n1),
+      kick:()=>Phaser.Input.Keyboard.JustDown(this.keys.n2),
+      special:()=>Phaser.Input.Keyboard.JustDown(this.keys.n3),
+    };
+  }
+  cpuInput(){
+    const me=this.p2, foe=this.p1;
+    const dist=Math.abs(foe.x-me.x);
+    const aggro = this.arcade ? Math.min(0.9, 0.35+(GameState.stage-1)*0.05) : 0.5;
+    if(!this._cpuTimer || this.time.now>this._cpuTimer){
+      this._cpuTimer=this.time.now+Phaser.Math.Between(130,320);
+      this._cpuMove = dist>90 ? (foe.x>me.x?'right':'left') : (Math.random()<0.3?(foe.x>me.x?'right':'left'):'none');
+      this._cpuAct=null;
+      if(dist<75 && !me.isBusy()){
+        const r=Math.random();
+        if(me.meter>=100 && r<0.2+aggro*0.1) this._cpuAct='special';
+        else if(dist<62 && r<0.4+aggro*0.2) this._cpuAct='punch';
+        else if(r<0.7+aggro*0.15) this._cpuAct='kick';
+        else if(r<0.9) this._cpuAct='block';
+      }
+    }
+    return {
+      left:()=>this._cpuMove==='left', right:()=>this._cpuMove==='right', jump:()=>false,
+      block:()=>this._cpuAct==='block',
+      punch:()=>{ if(this._cpuAct==='punch'){this._cpuAct=null;return true;} return false; },
+      kick:()=>{ if(this._cpuAct==='kick'){this._cpuAct=null;return true;} return false; },
+      special:()=>{ if(this._cpuAct==='special'){this._cpuAct=null;return true;} return false; },
+    };
+  }
+
+  update(time, delta){
+    if(this.roundOver) return;
+    if(this.hitStop>0){ this.hitStop -= delta; return; }
+    const dt=Math.min(delta,33)/1000;
+    this.p1.update(dt, this.p1Input(), this.p2);
+    this.p2.update(dt, this.vsCPU ? this.cpuInput() : this.p2Input(), this.p1);
+
+    // clear one-shot mobile triggers
+    this.mobileKeys.up = false;
+    this.mobileKeys.punch = false;
+    this.mobileKeys.kick = false;
+    this.mobileKeys.special = false;
+
+    this.p1Bar.width = 300*(this.p1.health/this.p1.maxHealth);
+    this.p2Bar.width = 300*(this.p2.health/this.p2.maxHealth);
+    this.p1Meter.width = 300*(this.p1.meter/100);
+    this.p2Meter.width = 300*(this.p2.meter/100);
+    this.timerText.setText(String(this.timeLeft));
+
+    if(this.p1.health<=0 || this.p2.health<=0) this.endRound();
+  }
+
+  endRound(){
+    if(this.roundOver) return;
+    this.roundOver = true;
+    const p1Won = this.p1.health >= this.p2.health;
+
+    if(!this.arcade){
+      const msg = this.p1.health===this.p2.health ? 'DRAW!' : (p1Won ? (this.vsCPU?'YOU WIN!':'PLAYER 1 WINS!') : (this.vsCPU?'CPU WINS!':'PLAYER 2 WINS!'));
+      this.resultText.setText(msg);
+      this.showContinueButton('Click to return to menu', ()=>this.scene.start('menu'));
+      return;
+    }
+
+    // arcade mode: wins/losses affect streak, coins, xp, stage
+    if(p1Won){
+      const coinReward = 30 + GameState.stage*2;
+      const xpReward = 25 + GameState.stage*3;
+      GameState.addCoins(coinReward);
+      GameState.addXP(xpReward);
+      GameState.streak++;
+      GameState.bestStreak = Math.max(GameState.bestStreak, GameState.streak);
+      GameState.stage++;
+
+      this.resultText.setText('VICTORY!');
+      this.add.text(W/2,H/2+10,`+${coinReward} coins   +${xpReward} xp   streak ${GameState.streak}`,{fontFamily:'Oswald',fontSize:'16px',color:'#dddddd'}).setOrigin(0.5).setDepth(20);
+      this.showContinueButton(`Continue to Level ${GameState.stage}`, ()=>this.scene.start('fight',{vsCPU:true, arcade:true}));
+    } else {
+      this.resultText.setText('DEFEATED');
+      this.showLoseOptions();
+    }
+  }
+
+  showContinueButton(label, cb){
+    const btn = this.add.rectangle(W/2,H/2+70,300,44,0xffffff,0.08).setStrokeStyle(2,0xffffff).setInteractive({useHandCursor:true}).setDepth(20);
+    const txt = this.add.text(W/2,H/2+70,label,{fontFamily:'Oswald',fontSize:'16px',color:'#ffffff'}).setOrigin(0.5).setDepth(21);
+    btn.on('pointerover',()=>btn.setFillStyle(0xffffff,0.18));
+    btn.on('pointerout',()=>btn.setFillStyle(0xffffff,0.08));
+    btn.on('pointerdown',cb);
+  }
+
+  showLoseOptions(){
+    const canRetry = GameState.coins>=50;
+    const retryBtn = this.add.rectangle(W/2-160,H/2+70,280,50,0xffffff,canRetry?0.1:0.03)
+      .setStrokeStyle(2, canRetry?0xffffff:0x555555).setDepth(20);
+    const retryTxt = this.add.text(W/2-160,H/2+70,canRetry?'TRY AGAIN — 50 COINS\n(loss not recorded)':'NOT ENOUGH COINS',{
+      fontFamily:'Oswald',fontSize:'14px',color:canRetry?'#ffffff':'#666666',align:'center'
+    }).setOrigin(0.5).setDepth(21);
+
+    const acceptBtn = this.add.rectangle(W/2+160,H/2+70,280,50,0xffffff,0.1).setStrokeStyle(2,0xffffff).setDepth(20);
+    const acceptTxt = this.add.text(W/2+160,H/2+70,'ACCEPT DEFEAT\n(streak resets)',{
+      fontFamily:'Oswald',fontSize:'14px',color:'#ffffff',align:'center'
+    }).setOrigin(0.5).setDepth(21);
+
+    if(canRetry){
+      retryBtn.setInteractive({useHandCursor:true});
+      retryBtn.on('pointerover',()=>retryBtn.setFillStyle(0xffffff,0.2));
+      retryBtn.on('pointerout',()=>retryBtn.setFillStyle(0xffffff,0.1));
+      retryBtn.on('pointerdown',()=>{
+        GameState.addCoins(-50);
+        this.scene.start('fight',{vsCPU:true, arcade:true}); // same stage, streak untouched
+      });
+    }
+
+    acceptBtn.setInteractive({useHandCursor:true});
+    acceptBtn.on('pointerover',()=>acceptBtn.setFillStyle(0xffffff,0.2));
+    acceptBtn.on('pointerout',()=>acceptBtn.setFillStyle(0xffffff,0.1));
+    acceptBtn.on('pointerdown',()=>{
+      GameState.streak = 0;
+      GameState.stage = 1; // arcade run resets on an accepted loss
+      this.scene.start('menu');
+    });
+  }
+}
+
+// ---------- Menu Scene ----------
+class MenuScene extends Phaser.Scene {
+  constructor(){ super('menu'); }
+  create(){
+    drawArena(this);
+    // this.cameras.main.postFX.addColorMatrix().grayscale(1); // Removed: Handled by CSS filter now
+
+    this.add.rectangle(0,0,W,H,0x000000,0.5).setOrigin(0).setDepth(1);
+
+    this.add.text(W/2,80,'STICK FIGHTER',{fontFamily:'Bebas Neue',fontSize:'64px',color:'#ffffff'}).setOrigin(0.5).setDepth(2).setStroke('#000',8);
+    this.add.text(W/2,138,'MONOCHROME EDITION',{fontFamily:'Oswald',fontSize:'14px',color:'#aaaaaa',fontStyle:'italic'}).setOrigin(0.5).setDepth(2);
+
+    topBarText(this).setY(170);
+
+    this.makeButton(W/2,250,`ARCADE — LEVEL ${GameState.stage}`,()=>this.scene.start('fight',{vsCPU:true, arcade:true}));
+    this.makeButton(W/2,320,'2 PLAYERS (CASUAL)',()=>this.scene.start('fight',{vsCPU:false, arcade:false}));
+
+    this.add.text(W/2,430,'P1: A/D W S F G H   |   P2: Arrows + Numpad 1/2/3',{fontFamily:'Oswald',fontSize:'13px',color:'#999999'}).setOrigin(0.5).setDepth(2);
+    this.add.text(W/2,455,'Chain clean hits for combo bonuses. Land PUNCH>PUNCH>KICK, KICK>KICK>PUNCH, or PUNCH>KICK>SPECIAL for named combos.',{fontFamily:'Oswald',fontSize:'12px',color:'#777777'}).setOrigin(0.5).setDepth(2);
+  }
+
+  makeButton(x,y,label,cb){
+    const w=340,h=50;
+    const bg=this.add.rectangle(x,y,w,h,0xffffff,0.08).setStrokeStyle(2,0xffffff).setOrigin(0.5).setInteractive({useHandCursor:true}).setDepth(2);
+    this.add.text(x,y,label,{fontFamily:'Bebas Neue',fontSize:'22px',color:'#ffffff'}).setOrigin(0.5).setDepth(3);
+    bg.on('pointerover',()=>bg.setFillStyle(0xffffff,0.18));
+    bg.on('pointerout',()=>bg.setFillStyle(0xffffff,0.08));
+    bg.on('pointerdown',cb);
+  }
+}
+
+const config = {
+  type: Phaser.WEBGL,
+  width: W, height: H,
+  parent:'game-wrap',
+  backgroundColor:'#000000',
+  scale:{ mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH, orientation: Phaser.Scale.LANDSCAPE },
+  scene:[MenuScene, FightScene]
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>

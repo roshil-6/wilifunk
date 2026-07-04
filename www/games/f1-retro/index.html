@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro F1 Racer - 2D Classic Arcade</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300..900;1,300..900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- Main Style sheet -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Phaser 3 library -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+    <!-- Splash Loading Screen -->
+    <div id="loading-screen">
+        <img src="logo.png" alt="HoneyPot Gaming" class="loading-logo">
+    </div>
+
+    <div class="arcade-cabinet">
+        <!-- Arcade Marquee Header -->
+        <div class="cabinet-marquee">
+            <span class="blink">★</span> RETRO F1 GRAND PRIX <span class="blink">★</span>
+        </div>
+
+        <div class="screen-frame">
+            <!-- Splash Screen / Menu Overlay -->
+            <div id="menu-overlay" class="overlay-container">
+                <div class="menu-content">
+                    <h1>SELECT YOUR RACE</h1>
+                    
+                    <div class="menu-section">
+                        <label>SELECT PLAYERS:</label>
+                        <div class="player-toggle">
+                            <button type="button" id="btn-1player" class="player-btn active" data-players="1">1 PLAYER</button>
+                            <button type="button" id="btn-2player" class="player-btn" data-players="2">2 PLAYERS</button>
+                        </div>
+                    </div>
+
+                    <div class="menu-section" id="singleplayer-mode-section">
+                        <label for="mode-select">GAME MODE:</label>
+                        <select id="mode-select">
+                            <option value="championship" selected>Classic Grand Prix (VS AI)</option>
+                            <option value="timeattack">Arcade Time Attack (Clock Timer)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="menu-section">
+                        <label for="control-select">CONTROL OPTION:</label>
+                        <select id="control-select">
+                            <option value="keyboard">Keyboard (Arrows / WASD)</option>
+                            <option value="wheel" selected>Steering Wheel & Pedals</option>
+                            <option value="joystick">Virtual Joystick (Single Touch)</option>
+                        </select>
+                    </div>
+
+                    <div class="menu-section">
+                        <label for="track-select">CHOOSE TRACK:</label>
+                        <select id="track-select">
+                            <option value="classic">Classic GP Circuit</option>
+                            <option value="monza">Monza Style (High Speed Oval + Chicanes)</option>
+                            <option value="hairpin">Hairpin Madness (Tight Drifts)</option>
+                        </select>
+                    </div>
+
+                    <div class="menu-section">
+                        <label>CHOOSE CAR COLOR:</label>
+                        <div class="color-options">
+                            <button class="color-btn active" data-color="blue" style="background-color: #3b82f6;"></button>
+                            <button class="color-btn" data-color="red" style="background-color: #ef4444;"></button>
+                            <button class="color-btn" data-color="yellow" style="background-color: #eab308;"></button>
+                            <button class="color-btn" data-color="green" style="background-color: #22c55e;"></button>
+                            <button class="color-btn" data-color="orange" style="background-color: #f97316;"></button>
+                            <button class="color-btn" data-color="purple" style="background-color: #a855f7;"></button>
+                        </div>
+                    </div>
+
+                    <div class="menu-section" id="ai-count-section">
+                        <label for="ai-count">AI OPPONENTS (MAX 3):</label>
+                        <select id="ai-count">
+                            <option value="3" selected>3 Opponents (4 Cars Total)</option>
+                            <option value="2">2 Opponents (3 Cars Total)</option>
+                            <option value="1">1 Opponent (2 Cars Total)</option>
+                            <option value="0">0 Opponents (Solo)</option>
+                        </select>
+                    </div>
+
+                    <div class="controls-guide">
+                        <h3>CONTROLS</h3>
+                        <p><strong>P1 (Blue Car):</strong> ARROW Keys (Accel/Steer/Brake)</p>
+                        <p><strong>P2 (Orange Car):</strong> WASD Keys (W=Accel, A/D=Steer, S=Brake)</p>
+                        <p><strong>Mobile Touch:</strong> Drag Virtual Controls at Bottom</p>
+                        <p><em>* Over 80% speed, steer sharp to slide and drift!</em></p>
+                    </div>
+
+                    <button id="start-btn" class="arcade-btn">START RACE</button>
+                </div>
+            </div>
+
+            <!-- Game Over / Race Results Overlay -->
+            <div id="results-overlay" class="overlay-container hidden">
+                <div class="menu-content results-content">
+                    <h1 id="results-title">RACE FINISHED!</h1>
+                    
+                    <div id="results-rank-box" class="results-rank-box">
+                        FINISHED: <span id="player-final-pos">1st</span>
+                    </div>
+
+                    <div class="leaderboard-table">
+                        <div class="leaderboard-header">
+                            <span>POS</span>
+                            <span>DRIVER</span>
+                            <span>TOTAL TIME</span>
+                        </div>
+                        <div id="leaderboard-results-rows">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <button id="restart-btn" class="arcade-btn">RACE AGAIN</button>
+                </div>
+            </div>
+
+            <!-- Game Canvas Container -->
+            <div id="game-container"></div>
+            
+            <!-- Mobile Joystick & Controls Container (under canvas) -->
+            <div id="mobile-controls-container" class="hidden">
+                <!-- Virtual Joystick (Joystick mode) -->
+                <div id="html-joystick-base" class="hidden">
+                    <div id="html-joystick-knob"></div>
+                </div>
+
+                <!-- Steering Wheel & Pedals (Wheel mode) -->
+                <div id="html-wheel-controls" class="hidden">
+                    <div id="html-steering-wheel-container">
+                        <div id="html-steering-wheel">
+                            <div class="wheel-spoke horizontal"></div>
+                            <div class="wheel-spoke vertical"></div>
+                            <div class="wheel-center"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="html-pedals-container">
+                        <div id="html-pedal-brake" class="html-pedal">
+                            <span class="pedal-label">BRAKE</span>
+                            <div class="pedal-ribs"></div>
+                        </div>
+                        <div id="html-pedal-accel" class="html-pedal">
+                            <span class="pedal-label">GAS</span>
+                            <div class="pedal-ribs"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arcade Panel Controls (Bottom Decoration) -->
+        <div class="cabinet-panel">
+            <div class="coin-slots">
+                <div class="coin-slot">
+                    <div class="light"></div>
+                    <span class="slot-text">INSERT COIN</span>
+                </div>
+                <div class="coin-slot">
+                    <div class="light"></div>
+                    <span class="slot-text">25¢ TO PLAY</span>
+                </div>
+            </div>
+            <div class="panel-instructions">
+                USE ARROW KEYS OR SCREEN WHEEL & PEDALS
+            </div>
+        </div>
+    </div>
+
+    <!-- Load scripts in dependencies order -->
+    <script src="src/config.js"></script>
+    <script src="src/synth.js"></script>
+    <script src="src/car.js"></script>
+    <script src="src/ai.js"></script>
+    <script src="src/track.js"></script>
+    <script src="src/game.js"></script>
+</body>
+</html>

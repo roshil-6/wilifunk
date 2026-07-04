@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stickfighters — Premium Edition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Satisfy&family=Oswald:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-color: #0c0715;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-color);
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    font-family: 'Oswald', Arial, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    position: fixed;
+  }
+  #game-wrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    overflow: hidden;
+  }
+  canvas {
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+  }
+  
+  /* Rotate device prompt overlay */
+  #rotate-prompt {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-color);
+    color: #fff;
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .phone-icon {
+    width: 60px;
+    height: 110px;
+    border: 5px solid #ffaa00;
+    border-radius: 10px;
+    position: relative;
+    animation: rotateDevice 2s ease-in-out infinite;
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+    margin-bottom: 25px;
+  }
+  .phone-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ffaa00;
+  }
+  .phone-icon::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    border-radius: 1.5px;
+    background: #ffaa00;
+  }
+  @keyframes rotateDevice {
+    0% { transform: rotate(0deg); }
+    30% { transform: rotate(-90deg); }
+    70% { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+  }
+  .prompt-title {
+    font-family: 'Satisfy', cursive;
+    font-size: 38px;
+    color: #ffffff;
+    margin: 0 0 10px 0;
+    text-shadow: 2px 2px #ffaa00;
+  }
+  .prompt-subtitle {
+    font-family: 'Oswald', sans-serif;
+    font-size: 16px;
+    color: #ffaa00;
+    letter-spacing: 1px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  @media (orientation: portrait) {
+    #rotate-prompt {
+      display: flex;
+    }
+    #game-wrap {
+      display: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="rotate-prompt">
+  <div class="phone-icon"></div>
+  <h1 class="prompt-title">Stickfighters</h1>
+  <p class="prompt-subtitle">Please rotate your device to landscape</p>
+</div>
+<div id="game-wrap"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<script>
+// Prevent mobile gesture zooming and default touch actions
+document.addEventListener('gesturestart', function(e) {
+  e.preventDefault();
+});
+document.addEventListener('touchmove', function(e) {
+  if (e.scale !== 1) { e.preventDefault(); }
+}, { passive: false });
+
+function resizeGame() {
+  const gameWrap = document.getElementById('game-wrap');
+  if (gameWrap) {
+    gameWrap.style.width = window.innerWidth + 'px';
+    gameWrap.style.height = window.innerHeight + 'px';
+  }
+}
+window.addEventListener('resize', resizeGame);
+window.addEventListener('orientationchange', resizeGame);
+window.addEventListener('DOMContentLoaded', resizeGame);
+
+/* =========================================================
+   STICKFIGHTERS — HANDCRAFTED PREMIUM EDITION
+   No AI clutter. Clean vector stickmen, beautiful sunset,
+   Satisfy cursive title, and clean single-screen Armory.
+   ========================================================= */
+
+const W = 960, H = 540;
+const GROUND_Y = 440;
+
+const PALETTE = {
+  skyTop: 0x1b0e3d,
+  skyMid: 0x7d1656,
+  skyLow: 0xff5e36,
+  skyHorizon: 0xffa136,
+  sun: 0xffea75,
+  sunGlow: 0xffaa00,
+  mountainFar: 0x3b092b,
+  mountainNear: 0x1c051a,
+  foregroundBlack: 0x09050d,
+  p1Color: 0x0a0a0a,      
+  p2Color: 0xd61e1e,      
+  p1Stroke: 0xffffff,     
+  p2Stroke: 0xff9999,     
+  vfxFire: 0xffaa00,
+  vfxSpecial: 0xa326ef
+};
+
+const WEAPONS = {
+  fists: { id: 'fists', name: 'Bare Fists', dmg: 1.0, range: 70, cost: 0, desc: 'Classic hand-to-hand combat.' },
+  daggers: { id: 'daggers', name: 'Sai Daggers', dmg: 1.3, range: 75, cost: 100, desc: 'Fast, sharp double-strikes.' },
+  katana: { id: 'katana', name: 'Steel Katana', dmg: 1.65, range: 92, cost: 220, desc: 'Long reach, heavy sword slashes.' },
+  nunchucks: { id: 'nunchucks', name: 'Dragon Nunchucks', dmg: 1.4, range: 82, cost: 350, desc: 'Rapid velocity multi-hits.' },
+  shadow_blade: { id: 'shadow_blade', name: 'Void Shadow Blade', dmg: 1.95, range: 105, cost: 500, desc: 'Unlocks massive dark-energy range.' }
+};
+
+const RANKS = [
+  {name:'ROOKIE',     xp:0},
+  {name:'CONTENDER',  xp:120},
+  {name:'FIGHTER',    xp:280},
+  {name:'WARRIOR',    xp:500},
+  {name:'CHAMPION',   xp:800},
+  {name:'GRANDMASTER',xp:1200},
+  {name:'LEGEND',     xp:1800}
+];
+
+const GameState = {
+  coins: 100,
+  xp: 0,
+  stage: 1,
+  streak: 0,
+  bestStreak: 0,
+  equippedWeapon: 'fists',
+  ownedWeapons: ['fists'],
+  level(){ return 1 + Math.floor(this.xp/100); },
+  rank(){
+    let r = RANKS[0];
+    for(const tier of RANKS){ if(this.xp>=tier.xp) r=tier; }
+    return r.name;
+  },
+  addXP(n){ this.xp += n; },
+  addCoins(n){ this.coins = Math.max(0, this.coins+n); }
+};
+
+const POSES = {
+  idle:   { armF:{a1:18, a2:25},  armB:{a1:-12,a2:20}, legF:{a1:10, a2:10},  legB:{a1:-10, a2:10}, torso:4  },
+  block:  { armF:{a1:75, a2:65},  armB:{a1:65, a2:75}, legF:{a1:18,a2:12},  legB:{a1:-8, a2:12}, torso:-8 },
+  punch:  { armF:{a1:90, a2:2},   armB:{a1:-20,a2:20}, legF:{a1:25,a2:10},  legB:{a1:-18,a2:8},  torso:16 },
+  kick:   { armF:{a1:-25,a2:25},  armB:{a1:25, a2:25}, legF:{a1:100,a2:5},   legB:{a1:-12,a2:8},  torso:-12 },
+  special:{ armF:{a1:115,a2:0},   armB:{a1:115,a2:0},  legF:{a1:30,a2:12},  legB:{a1:-25,a2:8},  torso:20 },
+  jump:   { armF:{a1:-35,a2:35},  armB:{a1:35,a2:35},  legF:{a1:45,a2:65},  legB:{a1:-35,a2:55}, torso:0 },
+  hit:    { armF:{a1:-45,a2:25},  armB:{a1:45,a2:25},  legF:{a1:12,a2:12},  legB:{a1:-30,a2:18}, torso:-18 },
+  ko:     { armF:{a1:85,a2:15},   armB:{a1:-85,a2:15}, legF:{a1:75,a2:8},   legB:{a1:-75,a2:8},  torso:0  }
+};
+
+const COMBOS = [
+  { seq:['punch','punch','kick'],  name:'TRIPLE STRIKE', bonus:25 }, 
+  { seq:['kick','kick','punch'],   name:'SPIN COMBO',    bonus:25 },
+  { seq:['punch','kick','special'],name:'FINISHER',      bonus:40 },
+  { seq:['punch','punch','punch'], name:'FURY FISTS',    bonus:30 },
+  { seq:['kick','kick','kick'],    name:'CYCLONE KICK',  bonus:35 },
+  { seq:['punch','kick','punch','kick'], name:'RHYTHM BREAKER', bonus:50 }
+];
+
+function lerpPose(p1, p2, t){
+  const L=(a,b)=>a+(b-a)*t;
+  const r={};
+  for(const k of ['armF','armB','legF','legB']){ r[k] = { a1: L(p1[k].a1,p2[k].a1), a2: L(p1[k].a2,p2[k].a2) }; }
+  r.torso = L(p1.torso,p2.torso);
+  return r;
+}
+
+function drawLimb(g, ox, oy, ang1, len1, ang2, len2, facing){
+  const a1 = Phaser.Math.DegToRad(ang1);
+  const jx = ox + facing*Math.sin(a1)*len1;
+  const jy = oy + Math.cos(a1)*len1;
+  const a2 = Phaser.Math.DegToRad(ang1+ang2);
+  const ex = jx + facing*Math.sin(a2)*len2;
+  const ey = jy + Math.cos(a2)*len2;
+  g.lineBetween(ox,oy,jx,jy);
+  g.lineBetween(jx,jy,ex,ey);
+  return {x:ex,y:ey};
+}
+
+class Fighter {
+  constructor(scene, x, color, strokeColor, facing, tag, statMods, weaponId){
+    this.scene = scene;
+    this.x = x; this.y = GROUND_Y;
+    this.vx = 0; this.vy = 0;
+    this.facing = facing;
+    this.color = color;
+    this.strokeColor = strokeColor;
+    this.tag = tag;
+    this.mods = Object.assign({hpMult:1, dmgMult:1, speedMult:1}, statMods||{});
+    this.maxHealth = 100*this.mods.hpMult;
+    this.health = this.maxHealth;
+    this.meter = 0;
+    this.state = 'idle';
+    this.stateTimer = 0;
+    this.hasHit = false;
+    this.walkT = 0;
+    this.hitCooldown = 0;
+    this.comboChainCount = 0;
+    this.lastLandTime = 0;
+    this.actionLog = [];
+    this.currentPose = POSES.idle;
+    
+    this.weapon = WEAPONS[weaponId || 'fists'];
+
+    this.headbandHistory = [];
+    this.shadowG = scene.add.graphics().setDepth(2);
+    this.g = scene.add.graphics().setDepth(5);
+    this.vfxG = scene.add.graphics().setDepth(6);
+  }
+
+  get rangeBox(){
+    const baseRange = this.weapon.range;
+    if (this.state === 'punch' || this.state === 'special') {
+      return baseRange;
+    } else if (this.state === 'kick') {
+      return baseRange + 10; 
+    }
+    return 0;
+  }
+
+  startAction(state, duration){ this.state=state; this.stateTimer=duration; this.hasHit=false; }
+  isBusy(){ return ['punch','kick','special','hit','ko'].includes(this.state); }
+
+  takeHit(dmg, knock){
+    if(this.state==='ko') return;
+    this.health = Math.max(0, this.health - dmg);
+    this.vx = knock;
+    this.startAction('hit', 240);
+    this.hitCooldown = 280;
+    this.comboChainCount = 0;
+    if(this.health<=0){ this.state='ko'; this.stateTimer=99999; }
+  }
+
+  logAction(type){
+    this.actionLog.push(type);
+    if(this.actionLog.length>4) this.actionLog.shift();
+  }
+
+  checkNamedCombo(){
+    for(const c of COMBOS){
+      const tail = this.actionLog.slice(-c.seq.length);
+      if(tail.length===c.seq.length && tail.every((v,i)=>v===c.seq[i])){
+        return c;
+      }
+    }
+    return null;
+  }
+
+  update(dt, input, opponent){
+    if(this.state==='jump' || this.vy!==0 || this.y<GROUND_Y){
+      this.vy += 1500*dt;
+      this.y += this.vy*dt;
+      if(this.y>=GROUND_Y){ this.y=GROUND_Y; this.vy=0; if(this.state==='jump') this.state='idle'; }
+    }
+
+    if(this.stateTimer>0){
+      this.stateTimer -= dt*1000;
+      if(this.stateTimer<=0 && this.state!=='ko'){
+        if(['punch','kick','special'].includes(this.state) && !this.hasHit){
+          this.comboChainCount = 0;
+        }
+        this.state='idle';
+        this.vx *= 0.2;
+      }
+    }
+    if(this.hitCooldown>0) this.hitCooldown -= dt*1000;
+    if(this.comboChainCount>0 && this.scene.time.now-this.lastLandTime>900) this.comboChainCount=0;
+
+    if(this.state==='ko'){ this.vx=0; this.render(); return; }
+
+    this.vx *= Math.pow(0.78, dt * 60);
+    this.x += this.vx * dt;
+    this.x = Phaser.Math.Clamp(this.x, 60, W-60);
+
+    if(!this.isBusy()) this.facing = opponent.x > this.x ? 1 : -1;
+
+    if(!this.isBusy() && this.y>=GROUND_Y){
+      let moving=false;
+      const spd = 260*this.mods.speedMult;
+      const accel = 2000 * this.mods.speedMult;
+      if(input.left()){ 
+        this.vx -= accel * dt; 
+        moving=true; 
+      }
+      else if(input.right()){ 
+        this.vx += accel * dt; 
+        moving=true; 
+      }
+      this.vx = Phaser.Math.Clamp(this.vx, -spd, spd);
+
+      if(input.jump()){ this.vy=-660; this.state='jump'; this.stateTimer=0; }
+      else if(input.block()){ this.state='block'; }
+      else if(input.punch()){ this.startAction('punch',240); }
+      else if(input.kick()){ this.startAction('kick',340); }
+      else if(input.special() && this.meter>=100){ this.meter=0; this.startAction('special',460); }
+      else { this.state = moving ? 'walk' : 'idle'; }
+    }
+
+    if(['punch','kick','special'].includes(this.state) && !this.hasHit){
+      const durations = {punch:240,kick:340,special:460};
+      const progress = 1 - Math.max(0,this.stateTimer)/durations[this.state];
+      const activeWindow = this.state==='punch' ? [0.3,0.6] : this.state==='kick' ? [0.35,0.65] : [0.25,0.6];
+      if(progress>=activeWindow[0] && progress<=activeWindow[1]){
+        const dist = Math.abs(opponent.x-this.x);
+        const facingRight = (opponent.x-this.x)*this.facing>0;
+        if(dist<=this.rangeBox && facingRight && opponent.hitCooldown<=0){
+          this.hasHit = true;
+          let dmg = {punch:8, kick:14, special:28}[this.state] * this.mods.dmgMult * this.weapon.dmg;
+          let knock = this.facing*(this.state==='special'?280:160);
+
+          if(opponent.state==='block'){
+            dmg = Math.round(dmg*0.15);
+            knock *= 0.2;
+            opponent.meter = Math.min(100, opponent.meter+5);
+            this.comboChainCount = 0;
+            opponent.takeHit(dmg, knock);
+          } else {
+            this.meter = Math.min(100, this.meter + (this.state==='special'?0:12));
+            this.comboChainCount++;
+            this.lastLandTime = this.scene.time.now;
+            this.logAction(this.state);
+            const chainMult = 1 + Math.min(0.6, (this.comboChainCount-1)*0.15);
+            dmg = Math.round(dmg*chainMult);
+
+            const combo = this.checkNamedCombo();
+            if(combo){ 
+              dmg += combo.bonus; 
+              this.actionLog=[]; 
+              knock *= 1.5; 
+            }
+
+            opponent.takeHit(dmg, knock);
+            this.scene.onHitLanded(this, opponent, dmg, this.comboChainCount, combo);
+          }
+        }
+      }
+    }
+
+    this.render();
+  }
+
+  destroy() {
+    this.shadowG.destroy();
+    this.g.destroy();
+    this.vfxG.destroy();
+  }
+
+  drawWeapon(g, hx, hy, facing) {
+    if (this.weapon.id === 'fists') return;
+    
+    let angle = 0;
+    if (this.state === 'punch' || this.state === 'special') {
+      angle = Phaser.Math.DegToRad(facing * -25);
+    } else {
+      angle = Phaser.Math.DegToRad(facing * 35);
+    }
+
+    if (this.weapon.id === 'daggers') {
+      const len = 20;
+      g.lineStyle(5, this.strokeColor, 1);
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+      g.lineStyle(3, 0xe0e0e0, 1);
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+    } else if (this.weapon.id === 'katana') {
+      const len = 42;
+      g.lineStyle(6, this.strokeColor, 1);
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+      g.lineStyle(3.5, 0xffffff, 1);
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+      g.fillStyle(0xffaa00, 1);
+      g.fillCircle(hx + Math.cos(angle)*facing*4, hy + Math.sin(angle)*4, 6);
+    } else if (this.weapon.id === 'nunchucks') {
+      const len = 15;
+      const secondAngle = angle + Phaser.Math.DegToRad(facing * 45);
+      g.lineStyle(4, 0x8a5a36, 1); 
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+      g.lineStyle(2, 0xaaaaaa, 1); 
+      const chainEnd = { x: hx + Math.cos(angle)*facing*len, y: hy + Math.sin(angle)*len };
+      g.lineBetween(chainEnd.x, chainEnd.y, chainEnd.x + Math.cos(secondAngle)*facing*len, chainEnd.y + Math.sin(secondAngle)*len);
+    } else if (this.weapon.id === 'shadow_blade') {
+      const len = 50;
+      g.lineStyle(8, 0x1f0d3d, 1); 
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+      g.lineStyle(5, PALETTE.vfxSpecial, 0.95); 
+      g.lineBetween(hx, hy, hx + Math.cos(angle)*facing*len, hy + Math.sin(angle)*len);
+    }
+  }
+
+  render(){
+    const g = this.g;
+    const vfx = this.vfxG;
+    g.clear();
+    vfx.clear();
+    this.shadowG.clear();
+    
+    const facing = this.facing;
+    
+    // Set position at hips pivot (keeps feet on ground exactly)
+    const HIP_H=60, SH_H=100, HEAD_R=16, LEN1=28, LEN2=28;
+    g.setPosition(this.x, this.y - 53);
+    vfx.setPosition(this.x, this.y - 53);
+
+    // Apply leans and spins
+    let targetRot = (this.vx / 320) * 0.16; 
+    if (this.state === 'jump') {
+      if (!this.jumpSpinTime) this.jumpSpinTime = 0;
+      this.jumpSpinTime += (this.vx !== 0 ? Math.sign(this.vx) : facing) * 0.14;
+      targetRot = this.jumpSpinTime;
+    } else {
+      this.jumpSpinTime = 0;
+    }
+    
+    g.rotation = Phaser.Math.Linear(g.rotation, targetRot, 0.18);
+    vfx.rotation = Phaser.Math.Linear(vfx.rotation, targetRot, 0.18);
+
+    // Shadow aligned perfectly below boots
+    this.shadowG.fillStyle(0x000000, 0.4);
+    this.shadowG.fillEllipse(this.x, this.y + 1, 45, 8);
+
+    const ox = 0, oy = HIP_H; 
+    
+    let targetPose;
+    if(this.state==='idle'){ targetPose = POSES.idle; }
+    else if(this.state==='walk'){
+      this.walkT += 0.015*Math.abs(this.vx||1)*0.15 + 0.2;
+      const t=(Math.sin(this.walkT*8)+1)/2;
+      targetPose = lerpPose(
+        {armF:{a1:-20,a2:15},armB:{a1:20,a2:15},legF:{a1:-25,a2:10},legB:{a1:25,a2:10},torso:3},
+        {armF:{a1:20,a2:15}, armB:{a1:-20,a2:15},legF:{a1:25,a2:10}, legB:{a1:-25,a2:10},torso:3},
+        t
+      );
+    } else { targetPose = POSES[this.state] || POSES.idle; }
+
+    this.currentPose = lerpPose(this.currentPose, targetPose, 0.3);
+    const pose = this.currentPose;
+
+    const bobY = this.state==='idle' ? Math.sin(this.scene.time.now/240)*3 : 0;
+    const hipY = oy-HIP_H, shY = oy-SH_H+bobY, headY = shY-HEAD_R-16;
+    const lean = Phaser.Math.DegToRad(pose.torso)*facing;
+    const shX = ox + Math.sin(lean)*12;
+
+    // Headband ribbon trail
+    const hbX = shX + Math.sin(lean)*5 - facing*HEAD_R;
+    const hbY = headY + 8;
+    if (!this.headbandHistory) this.headbandHistory = [];
+    this.headbandHistory.push({x: this.x + hbX, y: this.y - 53 + hbY}); 
+    if (this.headbandHistory.length > 8) this.headbandHistory.shift();
+
+    g.lineStyle(6, this.strokeColor, 1);
+    g.lineCap = 'round';
+    g.beginPath();
+    const localStart = g.getLocalPoint(this.headbandHistory[this.headbandHistory.length - 1].x, this.headbandHistory[this.headbandHistory.length - 1].y);
+    g.moveTo(localStart.x, localStart.y);
+    for (let i = this.headbandHistory.length - 2; i >= 0; i--) {
+      const p = this.headbandHistory[i];
+      const windOffset = -facing * (this.headbandHistory.length - i) * 3.5;
+      const yOffset = (this.headbandHistory.length - i) * 2;
+      const localPt = g.getLocalPoint(p.x + windOffset, p.y + yOffset);
+      g.lineTo(localPt.x, localPt.y);
+    }
+    g.strokePath();
+
+    const ribbonColor = this.isPlayer1 ? 0xffffff : 0xff3333;
+    g.lineStyle(3, ribbonColor, 1);
+    g.beginPath();
+    g.moveTo(localStart.x, localStart.y);
+    for (let i = this.headbandHistory.length - 2; i >= 0; i--) {
+      const p = this.headbandHistory[i];
+      const windOffset = -facing * (this.headbandHistory.length - i) * 3.5;
+      const yOffset = (this.headbandHistory.length - i) * 2;
+      const localPt = g.getLocalPoint(p.x + windOffset, p.y + yOffset);
+      g.lineTo(localPt.x, localPt.y);
+    }
+    g.strokePath();
+
+    g.lineStyle(16, this.strokeColor, 1);
+    g.lineCap='round';
+    g.lineJoin='round';
+
+    if(this.state==='ko'){
+      const midY=oy-16;
+      g.lineBetween(ox-45*facing, midY, ox+45*facing, midY);
+      drawLimb(g, ox+45*facing, midY, 80, LEN1, 10, LEN2, facing);
+      drawLimb(g, ox+45*facing, midY, -60, LEN1, -10, LEN2, facing);
+      drawLimb(g, ox-45*facing, midY, 100, LEN1, 5, LEN2, -facing);
+      drawLimb(g, ox-45*facing, midY, -100, LEN1, -5, LEN2, -facing);
+      
+      g.lineStyle(10, this.color, 1);
+      g.lineBetween(ox-45*facing, midY, ox+45*facing, midY);
+      drawLimb(g, ox+45*facing, midY, 80, LEN1, 10, LEN2, facing);
+      drawLimb(g, ox+45*facing, midY, -60, LEN1, -10, LEN2, facing);
+      drawLimb(g, ox-45*facing, midY, 100, LEN1, 5, LEN2, -facing);
+      drawLimb(g, ox-45*facing, midY, -100, LEN1, -5, LEN2, -facing);
+      
+      g.fillStyle(this.strokeColor,1);
+      g.fillCircle(ox-55*facing, midY, HEAD_R + 3);
+      g.fillStyle(this.color,1);
+      g.fillCircle(ox-55*facing, midY, HEAD_R);
+      return;
+    }
+
+    const armB_hand = drawLimb(g, shX, shY, pose.armB.a1, LEN1, pose.armB.a2, LEN2, facing);
+    const legB_foot = drawLimb(g, ox, hipY, pose.legB.a1, LEN1, pose.legB.a2, LEN2, facing);
+    g.lineBetween(ox, hipY, shX, shY);
+    const legF_foot = drawLimb(g, ox, hipY, pose.legF.a1, LEN1, pose.legF.a2, LEN2, facing);
+    const armF_hand = drawLimb(g, shX, shY, pose.armF.a1, LEN1, pose.armF.a2, LEN2, facing);
+
+    g.fillStyle(this.strokeColor, 1);
+    g.fillCircle(shX+Math.sin(lean)*5, headY, HEAD_R + 3);
+    g.fillCircle(armB_hand.x, armB_hand.y, 9);
+    g.fillCircle(armF_hand.x, armF_hand.y, 9);
+    g.fillCircle(legB_foot.x, legB_foot.y, 9);
+    g.fillCircle(legF_foot.x, legF_foot.y, 9);
+
+    g.lineStyle(10, this.color, 1);
+    const inner_armB = drawLimb(g, shX, shY, pose.armB.a1, LEN1, pose.armB.a2, LEN2, facing);
+    drawLimb(g, ox, hipY, pose.legB.a1, LEN1, pose.legB.a2, LEN2, facing);
+    g.lineBetween(ox, hipY, shX, shY);
+    const inner_legF = drawLimb(g, ox, hipY, pose.legF.a1, LEN1, pose.legF.a2, LEN2, facing);
+    const inner_armF = drawLimb(g, shX, shY, pose.armF.a1, LEN1, pose.armF.a2, LEN2, facing);
+
+    g.fillStyle(this.color, 1);
+    g.fillCircle(shX+Math.sin(lean)*5, headY, HEAD_R);
+    g.fillCircle(inner_armB.x, inner_armB.y, 6);
+    g.fillCircle(inner_armF.x, inner_armF.y, 6);
+    g.fillCircle(inner_legF.x, inner_legF.y, 6);
+    g.fillCircle(legB_foot.x, legB_foot.y, 6);
+
+    const eyeColor = this.isPlayer1 ? 0x00ffff : 0xffea00;
+    const currentEyeX = shX + Math.sin(lean)*5 + facing*5;
+    const currentEyeY = headY - 1;
+    g.fillStyle(eyeColor, 1);
+    g.fillCircle(currentEyeX, currentEyeY, 3);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(currentEyeX, currentEyeY, 1.5); 
+
+    this.drawWeapon(g, inner_armF.x, inner_armF.y, facing);
+
+    if(['punch','kick','special'].includes(this.state) && !this.hasHit){
+      const durations={punch:240,kick:340,special:460};
+      const p=1-this.stateTimer/durations[this.state];
+      if(p>0.2 && p<0.75){
+        if (this.state === 'punch') {
+          vfx.fillStyle(PALETTE.vfxFire, 0.8);
+          vfx.fillCircle(inner_armF.x, inner_armF.y, 22);
+          vfx.fillStyle(0xffffff, 0.9);
+          vfx.fillCircle(inner_armF.x, inner_armF.y, 12);
+          
+          vfx.lineStyle(12, PALETTE.vfxFire, 0.5);
+          vfx.lineBetween(inner_armF.x, inner_armF.y, inner_armF.x - facing*40, inner_armF.y);
+        } else if (this.state === 'kick') {
+          vfx.fillStyle(0xaaff00, 0.8);
+          vfx.fillCircle(inner_legF.x, inner_legF.y, 26);
+          vfx.fillStyle(0xffffff, 0.9);
+          vfx.fillCircle(inner_legF.x, inner_legF.y, 14);
+        } else if (this.state === 'special') {
+          vfx.fillStyle(PALETTE.vfxSpecial, 0.8);
+          vfx.fillCircle(inner_armF.x, inner_armF.y, 45);
+          vfx.fillStyle(0xffffff, 0.9);
+          vfx.fillCircle(inner_armF.x, inner_armF.y, 25);
+          
+          vfx.lineStyle(4, 0xffffff, 1);
+          for(let i=0; i<8; i++) {
+            const angle = Phaser.Math.DegToRad(i * 45 + this.scene.time.now*0.1);
+            const ex = inner_armF.x + Math.cos(angle)*55;
+            const ey = inner_armF.y + Math.sin(angle)*55;
+            vfx.lineBetween(inner_armF.x, inner_armF.y, ex, ey);
+          }
+        }
+      }
+    }
+  }
+}
+
+function drawArena(scene){
+  const g = scene.add.graphics();
+  g.setDepth(1); 
+
+  if (!scene.textures.exists('sky_gradient')) {
+    const skyTex = scene.textures.createCanvas('sky_gradient', W, H);
+    const ctx = skyTex.context;
+    const gradient = ctx.createLinearGradient(0, 0, 0, H);
+    gradient.addColorStop(0, '#1b0e3d');
+    gradient.addColorStop(0.35, '#5d0f43');
+    gradient.addColorStop(0.65, '#8c244c');
+    gradient.addColorStop(0.85, '#e64e33');
+    gradient.addColorStop(1, '#ff9633');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+    skyTex.refresh();
+  }
+  scene.add.image(W/2, H/2, 'sky_gradient').setDepth(0);
+
+  const sunX = W/2, sunY = H - 120;
+  g.fillStyle(0xffea75, 0.2);
+  g.fillCircle(sunX, sunY, 160);
+  g.fillStyle(0xffea75, 0.4);
+  g.fillCircle(sunX, sunY, 110);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(sunX, sunY, 70);
+
+  g.fillStyle(0x381232, 0.7);
+  g.fillTriangle(-60, H-90, 200, H-280, 520, H-90);
+  g.fillTriangle(440, H-90, 780, H-310, 1120, H-90);
+
+  g.fillStyle(0x210b1f, 0.95);
+  g.fillTriangle(-120, H-90, 120, H-220, 360, H-90);
+  g.fillTriangle(240, H-90, 520, H-240, 800, H-90);
+  g.fillTriangle(680, H-90, 920, H-200, 1100, H-90);
+
+  const pagoda = (px) => {
+    g.fillStyle(0x060309, 1);
+    const baseWidths = [120, 90, 60];
+    const roofHeights = [25, 20, 15];
+    let curY = H - 90;
+    
+    g.fillRect(px - 45, curY - 50, 90, 50);
+    g.fillStyle(0x000000, 1);
+    g.fillRect(px - 35, curY - 50, 10, 50);
+    g.fillRect(px + 25, curY - 50, 10, 50);
+    g.fillStyle(0x060309, 1);
+    
+    curY -= 50;
+
+    for (let i = 0; i < 3; i++) {
+      const w = baseWidths[i];
+      const h = roofHeights[i];
+      
+      const points = [
+        new Phaser.Geom.Point(px - w/2, curY),
+        new Phaser.Geom.Point(px - w/2 - 12, curY - h),
+        new Phaser.Geom.Point(px + w/2 + 12, curY - h),
+        new Phaser.Geom.Point(px + w/2, curY)
+      ];
+      g.beginPath();
+      g.moveTo(points[0].x, points[0].y);
+      for (let j = 1; j < points.length; j++) {
+        g.lineTo(points[j].x, points[j].y);
+      }
+      g.closePath();
+      g.fillPath();
+      
+      curY -= h;
+      
+      if (i < 2) {
+        g.fillRect(px - w/3, curY - 30, (w/3)*2, 30);
+        curY -= 30;
+      }
+    }
+    
+    g.fillRect(px - 2, curY - 25, 4, 25);
+  };
+  
+  pagoda(150);
+  pagoda(W - 150);
+
+  g.fillStyle(0x060309, 1);
+  g.fillRect(0, H-120, W, 30); 
+  
+  const numPosts = 12;
+  const spacing = W / (numPosts - 1);
+  g.lineStyle(8, 0x060309, 1);
+  for(let i=0; i<numPosts; i++) {
+    const px = i * spacing;
+    g.fillRect(px - 8, H-120, 16, 30); 
+    g.fillStyle(0xffa136, 0.4); 
+    g.fillCircle(px, H-125, 10);
+    g.fillStyle(0x060309, 1);
+    g.fillCircle(px, H-125, 8); 
+  }
+
+  g.fillStyle(0x0c0715, 1); 
+  g.fillRect(0, H-90, W, 90);
+  
+  g.fillStyle(0xff8400, 0.5);
+  g.fillRect(0, H-90, W, 4);
+}
+
+class FightScene extends Phaser.Scene {
+  constructor(){ super('fight'); }
+  init(data){ this.vsCPU = data.vsCPU; this.arcade = !!data.arcade; }
+
+  create(){
+    drawArena(this);
+
+    const stageMods = this.arcade ? {
+      hpMult: 1 + (GameState.stage-1)*0.07,
+      dmgMult: 1 + (GameState.stage-1)*0.05,
+      speedMult: 1 + Math.min(0.25,(GameState.stage-1)*0.02)
+    } : {};
+
+    let cpuWeapon = 'fists';
+    if (GameState.stage === 2) cpuWeapon = 'daggers';
+    else if (GameState.stage === 3) cpuWeapon = 'katana';
+    else if (GameState.stage === 4) cpuWeapon = 'nunchucks';
+    else if (GameState.stage >= 5) cpuWeapon = 'shadow_blade';
+
+    this.p1 = new Fighter(this, 300, PALETTE.p1Color, PALETTE.p1Stroke, 1, 'P1', {}, GameState.equippedWeapon);
+    this.p2 = new Fighter(this, 660, PALETTE.p2Color, PALETTE.p2Stroke, -1, 'P2', stageMods, cpuWeapon);
+
+    this.keys = this.input.keyboard.addKeys({
+      a:'A', d:'D', w:'W', s:'S', f:'F', g:'G', h:'H',
+      left:'LEFT', right:'RIGHT', up:'UP', down:'DOWN',
+      n1:'NUMPAD_ONE', n2:'NUMPAD_TWO', n3:'NUMPAD_THREE'
+    });
+
+    this.timeLeft = 60;
+    this.roundOver = false;
+    this.hitStop = 0;
+    this.comboTexts = [];
+    this.mobileKeys = { left:false, right:false, up:false, down:false, punch:false, kick:false, special:false };
+
+    this.sunbeams = this.add.graphics().setDepth(0.5);
+
+    if (this.textures.exists('sakura')) {
+      this.sakuraEmitter = this.add.particles(0, 0, 'sakura', {
+        x: { min: -100, max: W + 100 },
+        y: { min: -20, max: H - 150 },
+        lifespan: 6000,
+        speedY: { min: 30, max: 70 },
+        speedX: { min: 20, max: 60 },
+        rotation: { start: 0, end: 360 },
+        scale: { start: 0.7, end: 0.15 },
+        frequency: 250,
+        quantity: 1,
+        maxParticles: 30
+      }).setDepth(1.5);
+    }
+
+    this.buildHUD();
+
+    this.timerEvent = this.time.addEvent({
+      delay:1000, loop:true,
+      callback: ()=>{ if(this.roundOver||this.hitStop>0) return; this.timeLeft--; if(this.timeLeft<=0){ this.timeLeft=0; this.endRound(); } }
+    });
+  }
+
+  buildHUD(){
+    const barW=280, barH=22;
+    const hudY = 46;
+
+    this.hudG = this.add.graphics().setDepth(15);
+    
+    // Portraits
+    this.hudG.fillStyle(0x110c1f, 0.95);
+    this.hudG.lineStyle(3, 0xffffff, 0.8);
+    this.hudG.fillCircle(50, hudY, 28);
+    this.hudG.strokeCircle(50, hudY, 28);
+    
+    this.hudG.fillStyle(PALETTE.p1Color, 1);
+    this.hudG.fillCircle(50, hudY, 15);
+    
+    this.hudG.fillStyle(0x110c1f, 0.95);
+    this.hudG.fillCircle(W-50, hudY, 28);
+    this.hudG.strokeCircle(W-50, hudY, 28);
+    
+    this.hudG.fillStyle(PALETTE.p2Color, 1);
+    this.hudG.fillCircle(W-50, hudY, 15);
+
+    // Bars
+    this.p1BarBg=this.add.rectangle(85+barW/2, hudY-8, barW, barH, 0x1f1730).setOrigin(0.5).setDepth(10).setStrokeStyle(2, 0xffbb00);
+    this.p1Bar=this.add.rectangle(85, hudY-8, barW, barH, 0xffc400).setOrigin(0, 0.5).setDepth(11); 
+
+    this.p1MeterBg=this.add.rectangle(85+barW/2, hudY+10, barW, 10, 0x1f1730).setOrigin(0.5).setDepth(10).setStrokeStyle(1, 0x555555);
+    this.p1Meter=this.add.rectangle(85, hudY+10, 0, 10, 0x00bcff).setOrigin(0, 0.5).setDepth(11); 
+
+    const p1WeaponName = WEAPONS[GameState.equippedWeapon].name.toUpperCase();
+    this.p1Name = this.add.text(85, hudY-28, `P1: ${p1WeaponName}`, {fontFamily:'Bebas Neue', fontSize:'18px', color:'#ffffff'}).setDepth(11);
+    this.p1HealthPct = this.add.text(85 + barW, hudY-28, '100%', {fontFamily:'Oswald', fontSize:'12px', color:'#ffcc00'}).setOrigin(1,0).setDepth(11);
+
+    this.p2BarBg=this.add.rectangle(W-85-barW/2, hudY-8, barW, barH, 0x1f1730).setOrigin(0.5).setDepth(10).setStrokeStyle(2, 0xff2a2a);
+    this.p2Bar=this.add.rectangle(W-85, hudY-8, barW, barH, 0xffc400).setOrigin(1, 0.5).setDepth(11); 
+
+    this.p2MeterBg=this.add.rectangle(W-85-barW/2, hudY+10, barW, 10, 0x1f1730).setOrigin(0.5).setDepth(10).setStrokeStyle(1, 0x555555);
+    this.p2Meter=this.add.rectangle(W-85, hudY+10, 0, 10, 0x00bcff).setOrigin(1, 0.5).setDepth(11); 
+
+    const cpuWep = this.p2.weapon.name.toUpperCase();
+    const p2name = this.arcade ? `STAGE ${GameState.stage} CPU (${cpuWep})` : `P2 (${cpuWep})`;
+    this.p2Name = this.add.text(W-85, hudY-28, p2name, {fontFamily:'Bebas Neue', fontSize:'18px', color:'#ffffff'}).setOrigin(1,0).setDepth(11);
+    this.p2HealthPct = this.add.text(W-85 - barW, hudY-28, '100%', {fontFamily:'Oswald', fontSize:'12px', color:'#ffcc00'}).setDepth(11);
+
+    // Timer Hexagon
+    this.hudG.fillStyle(0x0c0715, 0.95);
+    this.hudG.lineStyle(3, 0xff9900, 1);
+    const hexPoints = [
+      new Phaser.Geom.Point(W/2 - 30, 20),
+      new Phaser.Geom.Point(W/2 + 30, 20),
+      new Phaser.Geom.Point(W/2 + 45, 45),
+      new Phaser.Geom.Point(W/2 + 30, 70),
+      new Phaser.Geom.Point(W/2 - 30, 70),
+      new Phaser.Geom.Point(W/2 - 45, 45)
+    ];
+    this.hudG.beginPath();
+    this.hudG.moveTo(hexPoints[0].x, hexPoints[0].y);
+    for (let j = 1; j < hexPoints.length; j++) {
+      this.hudG.lineTo(hexPoints[j].x, hexPoints[j].y);
+    }
+    this.hudG.closePath();
+    this.hudG.fillPath();
+    this.hudG.strokePath();
+
+    this.timerText=this.add.text(W/2, 45, '60', {fontFamily:'Bebas Neue', fontSize:'32px', color:'#ffffff'}).setOrigin(0.5).setDepth(16);
+    this.roundLabel = this.add.text(W/2, H-25, `STAGE ${GameState.stage}`, {fontFamily:'Bebas Neue', fontSize:'16px', color:'#ff8400'}).setOrigin(0.5).setDepth(11);
+
+    // Fullscreen toggle button
+    const fsBtn = this.add.text(W/2 + 75, 45, '⛶', { fontFamily: 'Oswald', fontSize: '26px', color: '#ffaa00' })
+      .setOrigin(0.5)
+      .setDepth(20)
+      .setInteractive({ useHandCursor: true });
+    fsBtn.on('pointerover', () => fsBtn.setColor('#ffffff'));
+    fsBtn.on('pointerout', () => fsBtn.setColor('#ffaa00'));
+    fsBtn.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    this.resultText=this.add.text(W/2, H/2-60, '', {fontFamily:'Bebas Neue', fontSize:'60px', color:'#ffffff'}).setOrigin(0.5).setDepth(20).setStroke('#000', 8);
+
+    this.statsText = this.add.text(W/2, 5, `LV.${GameState.level()} ${GameState.rank()}  |  COINS ${GameState.coins}  |  STREAK ${GameState.streak} (BEST ${GameState.bestStreak})`, {
+      fontFamily:'Oswald', fontSize:'12px', color:'#aaaaaa'
+    }).setOrigin(0.5,0).setDepth(11);
+
+    this.buildMobileControls();
+  }
+
+  buildMobileControls(){
+    this.mobileG = this.add.graphics().setDepth(99);
+    
+    // Position D-pad slightly further in and higher up to avoid bezel cuts
+    const dpadX = 135, dpadY = H - 120;
+    this.mobileG.fillStyle(0x0c0715, 0.65);
+    this.mobileG.lineStyle(4, 0xffbb00, 0.6); 
+    this.mobileG.fillCircle(dpadX, dpadY, 62);
+    this.mobileG.strokeCircle(dpadX, dpadY, 62);
+    
+    const addDirBtn = (x, y, label, key) => {
+      const c = this.add.circle(x, y, 26, 0xffffff, 0.15).setInteractive().setDepth(100).setStrokeStyle(1.5, 0xffffff, 0.3);
+      this.add.text(x, y, label, {fontFamily:'Oswald', fontSize: '18px', color:'#ffffff', fontWeight:'bold'}).setOrigin(0.5).setDepth(101);
+      
+      // Make touch hit area 1.6x larger than visual button (extremely responsive)
+      c.input.hitArea.radius = 42;
+
+      c.on('pointerdown', () => { this.mobileKeys[key] = true; c.setFillStyle(0xffffff, 0.4); });
+      c.on('pointerup', () => { this.mobileKeys[key] = false; c.setFillStyle(0xffffff, 0.15); });
+      c.on('pointerout', () => { this.mobileKeys[key] = false; c.setFillStyle(0xffffff, 0.15); });
+    };
+
+    addDirBtn(dpadX - 36, dpadY, '◀', 'left');
+    addDirBtn(dpadX + 36, dpadY, '▶', 'right');
+    addDirBtn(dpadX, dpadY - 36, '▲', 'up');
+    addDirBtn(dpadX, dpadY + 36, '▼', 'down');
+
+    // Shift action buttons further in and higher up to avoid rounded screen bezel cuts
+    const actX = W - 165, actY = H - 120;
+    const ig = this.add.graphics().setDepth(102); 
+
+    const addActionBtn = (x, y, radius, label, color, key, drawIconCallback) => {
+      // Semi-transparent button base with glowing rim
+      const c = this.add.circle(x, y, radius, 0x0c0715, 0.75).setInteractive().setDepth(100).setStrokeStyle(3, color, 0.85);
+      
+      // Bottom text label placed safely below the circle
+      this.add.text(x, y + radius + 11, label, {fontFamily:'Bebas Neue', fontSize: '13px', color:'#ffffff'}).setOrigin(0.5).setDepth(101).setStroke('#000000', 3);
+      
+      // Make hit area 1.6x larger than the visual button
+      c.input.hitArea.radius = 48;
+
+      drawIconCallback(ig, x, y);
+
+      c.on('pointerdown', () => { 
+        this.mobileKeys[key] = true; 
+        c.setScale(0.9); 
+        c.setFillStyle(color, 0.35);
+      });
+      c.on('pointerup', () => { 
+        this.mobileKeys[key] = false; // Fixed sticky button issue
+        c.setScale(1.0); 
+        c.setFillStyle(0x0c0715, 0.75);
+      });
+      c.on('pointerout', () => { 
+        this.mobileKeys[key] = false; 
+        c.setScale(1.0); 
+        c.setFillStyle(0x0c0715, 0.75);
+      });
+    };
+
+    // 1. Blue Block Shield
+    addActionBtn(actX - 38, actY - 26, 30, 'BLOCK', 0x0084ff, 'down', (g, x, y) => {
+      g.fillStyle(0x3ac6ff, 0.95);
+      g.lineStyle(1.5, 0xffffff, 1);
+      g.beginPath();
+      g.moveTo(x - 9, y - 11);
+      g.lineTo(x + 9, y - 11);
+      g.lineTo(x + 9, y - 2);
+      g.lineTo(x, y + 11);
+      g.lineTo(x - 9, y - 2);
+      g.closePath();
+      g.fillPath();
+      g.strokePath();
+    });
+
+    // 2. Green Kick Shoe
+    addActionBtn(actX - 38, actY + 38, 30, 'KICK', 0x00cc44, 'kick', (g, x, y) => {
+      g.lineStyle(5, 0x4ff078, 1);
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.beginPath();
+      g.moveTo(x - 9, y - 11);
+      g.lineTo(x + 2, y + 4); 
+      g.lineTo(x + 12, y - 2); 
+      g.strokePath();
+    });
+
+    // 3. Yellow Fist Punch
+    addActionBtn(actX + 38, actY - 26, 30, 'PUNCH', 0xffbb00, 'punch', (g, x, y) => {
+      g.fillStyle(0xffea00, 1);
+      g.fillRect(x - 10, y - 6, 17, 11); 
+      g.fillRect(x - 7, y - 10, 3, 4); 
+      g.fillRect(x - 2, y - 10, 3, 4);
+      g.fillRect(x + 3, y - 10, 3, 4);
+      g.fillRect(x - 12, y - 3, 3, 8); 
+    });
+
+    // 4. Purple Flame Special
+    addActionBtn(actX + 38, actY + 38, 30, 'SPECIAL', 0xa326ef, 'special', (g, x, y) => {
+      g.fillStyle(0xe577ff, 0.95);
+      g.fillCircle(x, y + 4, 9);
+      g.fillCircle(x - 3, y - 1, 7);
+      g.fillCircle(x + 3, y - 7, 5);
+    });
+    
+    const hintStyle={fontFamily:'Oswald',fontSize:'11px',color:'#777777'};
+    this.add.text(10, H-20,'P1 Controls: A/D (move) | W (jump) | S (block) | F (punch) | G (kick) | H (special)',hintStyle).setDepth(11);
+  }
+
+  onHitLanded(attacker, defender, dmg, chainCount, combo){
+    const big = attacker.state==='special';
+    this.cameras.main.shake(big?140:80, big?0.008:0.004);
+    this.hitStop = big ? 80 : 40;
+
+    const emitter = this.add.particles(defender.x, defender.y - 60, 'impact_spark', {
+      speed: { min: 150, max: 350 },
+      angle: { min: attacker.facing === 1 ? -45 : 135, max: attacker.facing === 1 ? 45 : 225 },
+      scale: { start: 0.15, end: 0 },
+      blendMode: 'ADD',
+      tint: big ? PALETTE.vfxSpecial : PALETTE.vfxFire,
+      lifespan: 250,
+      quantity: 12
+    });
+    this.time.delayedCall(250, () => emitter.destroy());
+
+    if(chainCount>=2 || combo){
+      const label = combo ? combo.name : `${chainCount} HIT COMBO`;
+      const t = this.add.text(defender.x, defender.y-170, label, {
+        fontFamily:'Bebas Neue', fontSize: combo?'28px':'22px', color:'#ffffff'
+      }).setOrigin(0.5).setDepth(25).setStroke('#000000', 5);
+      
+      this.tweens.add({
+        targets: t,
+        y: t.y - 40,
+        alpha: 0,
+        duration: 600,
+        onComplete: () => t.destroy()
+      });
+    }
+  }
+
+  p1Input(){
+    return {
+      left:()=>this.keys.a.isDown || this.mobileKeys.left, 
+      right:()=>this.keys.d.isDown || this.mobileKeys.right,
+      jump:()=>Phaser.Input.Keyboard.JustDown(this.keys.w) || this.mobileKeys.up,
+      block:()=>this.keys.s.isDown || this.mobileKeys.down,
+      punch:()=>Phaser.Input.Keyboard.JustDown(this.keys.f) || this.mobileKeys.punch,
+      kick:()=>Phaser.Input.Keyboard.JustDown(this.keys.g) || this.mobileKeys.kick,
+      special:()=>Phaser.Input.Keyboard.JustDown(this.keys.h) || this.mobileKeys.special,
+    };
+  }
+
+  cpuInput(){
+    const me=this.p2, foe=this.p1;
+    const dist=Math.abs(foe.x-me.x);
+    const aggro = Math.min(0.9, 0.4+(GameState.stage-1)*0.06);
+    
+    if(!this._cpuTimer || this.time.now>this._cpuTimer){
+      this._cpuTimer=this.time.now+Phaser.Math.Between(150, 300);
+      this._cpuMove = dist>95 ? (foe.x>me.x?'right':'left') : (Math.random()<0.25?(foe.x>me.x?'right':'left'):'none');
+      this._cpuAct=null;
+      if(dist<80 && !me.isBusy()){
+        const r=Math.random();
+        if(me.meter>=100 && r<0.25+aggro*0.1) this._cpuAct='special';
+        else if(dist<70 && r<0.45+aggro*0.15) this._cpuAct='punch';
+        else if(r<0.75+aggro*0.1) this._cpuAct='kick';
+        else if(r<0.88) this._cpuAct='block';
+      }
+    }
+    return {
+      left:()=>this._cpuMove==='left', right:()=>this._cpuMove==='right', jump:()=>false,
+      block:()=>this._cpuAct==='block',
+      punch:()=>{ if(this._cpuAct==='punch'){this._cpuAct=null;return true;} return false; },
+      kick:()=>{ if(this._cpuAct==='kick'){this._cpuAct=null;return true;} return false; },
+      special:()=>{ if(this._cpuAct==='special'){this._cpuAct=null;return true;} return false; },
+    };
+  }
+
+  update(time, delta){
+    if(this.roundOver) return;
+    if(this.hitStop>0){ this.hitStop -= delta; return; }
+    
+    const dt=Math.min(delta, 33)/1000;
+    this.p1.update(dt, this.p1Input(), this.p2);
+    this.p2.update(dt, this.cpuInput(), this.p1);
+
+    if (this.sunbeams) {
+      this.sunbeams.clear();
+      this.sunbeams.fillStyle(PALETTE.sunGlow, 0.045); 
+      const numRays = 12;
+      const rayAngle = 360 / numRays;
+      const radius = 800;
+      const rot = time * 0.00015; 
+      const sunX = W/2, sunY = H - 120;
+      for(let i=0; i<numRays; i++) {
+        const startA = rot + Phaser.Math.DegToRad(i * rayAngle - 10);
+        const endA = rot + Phaser.Math.DegToRad(i * rayAngle + 10);
+        this.sunbeams.beginPath();
+        this.sunbeams.moveTo(sunX, sunY);
+        this.sunbeams.lineTo(sunX + Math.cos(startA)*radius, sunY + Math.sin(startA)*radius);
+        this.sunbeams.lineTo(sunX + Math.cos(endA)*radius, sunY + Math.sin(endA)*radius);
+        this.sunbeams.closePath();
+        this.sunbeams.fillPath();
+      }
+    }
+
+    this.mobileKeys.up = false;
+    this.mobileKeys.punch = false;
+    this.mobileKeys.kick = false;
+    this.mobileKeys.special = false;
+
+    const barW=280;
+    const p1HPPercent = this.p1.health / this.p1.maxHealth;
+    const p2HPPercent = this.p2.health / this.p2.maxHealth;
+
+    this.p1Bar.width = barW * p1HPPercent;
+    this.p2Bar.width = barW * p2HPPercent;
+    this.p1Meter.width = barW * (this.p1.meter / 100);
+    this.p2Meter.width = barW * (this.p2.meter / 100);
+
+    this.p1HealthPct.setText(Math.round(p1HPPercent * 100) + '%');
+    this.p2HealthPct.setText(Math.round(p2HPPercent * 100) + '%');
+
+    this.timerText.setText(String(this.timeLeft));
+
+    if(this.p1.health<=0 || this.p2.health<=0) this.endRound();
+  }
+
+  endRound(){
+    if(this.roundOver) return;
+    this.roundOver = true;
+    const p1Won = this.p1.health >= this.p2.health;
+
+    const msg = this.p1.health === this.p2.health ? 'DRAW!' : (p1Won ? 'YOU WIN!' : 'DEFEATED');
+    this.resultText.setText(msg);
+
+    if(p1Won){
+      const coinReward = 45 + GameState.stage*5; 
+      const xpReward = 30 + GameState.stage*4;
+      GameState.addCoins(coinReward);
+      GameState.addXP(xpReward);
+      GameState.streak++;
+      GameState.bestStreak = Math.max(GameState.bestStreak, GameState.streak);
+      GameState.stage++;
+
+      this.add.text(W/2, H/2+10, `+${coinReward} coins   +${xpReward} xp   streak ${GameState.streak}`, {
+        fontFamily:'Oswald',fontSize:'16px',color:'#ffbb00'
+      }).setOrigin(0.5).setDepth(20);
+
+      this.showContinueButton(`NEXT LEVEL (STAGE ${GameState.stage})`, () => {
+        this.p1.destroy();
+        this.p2.destroy();
+        this.scene.start('fight', {vsCPU:true, arcade:true});
+      });
+    } else {
+      this.showLoseOptions();
+    }
+  }
+
+  showContinueButton(label, cb){
+    const btn = this.add.rectangle(W/2, H/2+80, 260, 44, 0xffaa00, 0.9).setInteractive({useHandCursor:true}).setDepth(20).setStrokeStyle(2, 0xffffff);
+    const txt = this.add.text(W/2, H/2+80, label, {fontFamily:'Bebas Neue', fontSize:'20px', color:'#ffffff'}).setOrigin(0.5).setDepth(21);
+    btn.on('pointerover',()=>btn.setFillStyle(0xff9900, 1.0));
+    btn.on('pointerout',()=>btn.setFillStyle(0xffaa00, 0.9));
+    btn.on('pointerdown',cb);
+  }
+
+  showLoseOptions(){
+    const canRetry = GameState.coins>=50;
+    
+    const retryBtn = this.add.rectangle(W/2-140, H/2+80, 240, 48, canRetry?0xffbb00:0x333333, 0.9).setStrokeStyle(2, 0xffffff).setDepth(20);
+    const retryTxt = this.add.text(W/2-140, H/2+80, canRetry?'RETRY (50 COINS)':'NOT ENOUGH COINS', {
+      fontFamily:'Bebas Neue', fontSize:'18px', color:'#ffffff', align:'center'
+    }).setOrigin(0.5).setDepth(21);
+
+    const acceptBtn = this.add.rectangle(W/2+140, H/2+80, 240, 48, 0x1f1730, 0.95).setStrokeStyle(2, 0xff0000).setDepth(20);
+    const acceptTxt = this.add.text(W/2+140, H/2+80, 'ACCEPT DEFEAT', {
+      fontFamily:'Bebas Neue', fontSize:'18px', color:'#ff3333', align:'center'
+    }).setOrigin(0.5).setDepth(21);
+
+    if(canRetry){
+      retryBtn.setInteractive({useHandCursor:true});
+      retryBtn.on('pointerover',()=>retryBtn.setFillStyle(0xffaa00, 1.0));
+      retryBtn.on('pointerout',()=>retryBtn.setFillStyle(0xffbb00, 0.9));
+      retryBtn.on('pointerdown',()=>{
+        GameState.addCoins(-50);
+        this.p1.destroy();
+        this.p2.destroy();
+        this.scene.start('fight',{vsCPU:true, arcade:true});
+      });
+    }
+
+    acceptBtn.setInteractive({useHandCursor:true});
+    acceptBtn.on('pointerover',()=>acceptBtn.setFillStyle(0x35234a, 1.0));
+    acceptBtn.on('pointerout',()=>acceptBtn.setFillStyle(0x1f1730, 0.95));
+    acceptBtn.on('pointerdown',()=>{
+      GameState.streak = 0;
+      GameState.stage = 1;
+      this.p1.destroy();
+      this.p2.destroy();
+      this.scene.start('menu');
+    });
+  }
+}
+
+class MenuScene extends Phaser.Scene {
+  constructor(){ super('menu'); }
+  
+  preload() {
+    if (!this.textures.exists('impact_spark')) {
+      const canvas = this.textures.createCanvas('impact_spark', 16, 16);
+      const ctx = canvas.context;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(8, 8, 8, 0, Math.PI*2);
+      ctx.fill();
+      canvas.refresh();
+    }
+    if (!this.textures.exists('sakura')) {
+      const canvas2 = this.textures.createCanvas('sakura', 8, 8);
+      const ctx2 = canvas2.context;
+      ctx2.fillStyle = '#ffb3d1'; 
+      ctx2.beginPath();
+      ctx2.arc(4, 4, 4, 0, Math.PI*2);
+      ctx2.fill();
+      canvas2.refresh();
+    }
+  }
+
+  create(){
+    drawArena(this);
+
+    // Dark layout overlay (depth 1)
+    this.add.rectangle(0,0,W,H,0x000000, 0.45).setOrigin(0).setDepth(1);
+    
+    // Dynamic single menu flow: main view, play select subview, shop subview
+    this.currentView = 'main'; // 'main', 'play_select', 'shop'
+    this.viewContainers = {
+      main: this.add.container(0, 0).setDepth(10),
+      play_select: this.add.container(0, 0).setDepth(10).setVisible(false),
+      shop: this.add.container(0, 0).setDepth(10).setVisible(false)
+    };
+
+    // Instantiate showcase character model in the center (depth 2, above backdrop)
+    this.showcaseFighter = new Fighter(this, W/2, H - 90, PALETTE.p1Color, PALETTE.p1Stroke, 1, 'SHOWCASE', GameState.equippedWeapon);
+    this.showcaseFighter.g.setScale(1.25);
+    this.showcaseFighter.shadowG.setScale(1.25);
+    // Draw showcase shadow
+    this.showcaseFighter.shadowG.clear();
+    this.showcaseFighter.shadowG.fillStyle(0x000000, 0.4);
+    this.showcaseFighter.shadowG.fillEllipse(W/2, H - 89, 56, 10);
+
+    this.buildMainView();
+    this.buildPlaySelectView();
+    this.buildShopView();
+
+    // Fullscreen toggle button
+    const fsBtn = this.add.text(W - 35, 30, '⛶', { fontFamily: 'Oswald', fontSize: '26px', color: '#ffaa00' })
+      .setOrigin(0.5)
+      .setDepth(20)
+      .setInteractive({ useHandCursor: true });
+    fsBtn.on('pointerover', () => fsBtn.setColor('#ffffff'));
+    fsBtn.on('pointerout', () => fsBtn.setColor('#ffaa00'));
+    fsBtn.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+  }
+
+  update(time, delta) {
+    if (this.showcaseFighter) {
+      // Keep main menu character breathing
+      this.showcaseFighter.update(delta/1000, {
+        left: () => false,
+        right: () => false,
+        jump: () => false,
+        block: () => false,
+        punch: () => false,
+        kick: () => false,
+        special: () => false
+      }, { x: 99999 });
+    }
+  }
+
+  switchView(target) {
+    this.currentView = target;
+    
+    Object.keys(this.viewContainers).forEach(key => {
+      this.viewContainers[key].setVisible(key === target);
+    });
+    
+    // Showcase character is only shown on the clean Main View and Play Select View
+    this.showcaseFighter.g.setVisible(target !== 'shop');
+    this.showcaseFighter.shadowG.setVisible(target !== 'shop');
+  }
+
+  // --- 1. MAIN SCREEN VIEW ---
+  buildMainView() {
+    const c = this.viewContainers.main;
+
+    // Elegant handwritten Satisfy font title (Exactly STICKFIGHTERS in cursive)
+    const titleText = this.add.text(W/2, 90, 'Stickfighters', {
+      fontFamily: 'Satisfy', fontSize: '84px', color: '#ffffff'
+    }).setOrigin(0.5).setStroke('#000000', 8).setShadow(2, 2, '#ffaa00', 4, true, true);
+    c.add(titleText);
+
+    // Clean stats bar containing win streak status
+    const streakLabel = this.add.text(W/2, 175, `WIN STREAK: ${GameState.streak}   (BEST: ${GameState.bestStreak})`, {
+      fontFamily: 'Oswald', fontSize: '18px', color: '#ffbb00', fontWeight: 'bold'
+    }).setOrigin(0.5).setStroke('#000', 3);
+    c.add(streakLabel);
+
+    // Simple option buttons
+    const playBtn = this.makeButton(W/2 - 130, H - 70, 'PLAY OPTION', () => {
+      this.switchView('play_select');
+    });
+    const armoryBtn = this.makeButton(W/2 + 130, H - 70, 'ARMORY OPTION', () => {
+      this.switchView('shop');
+    });
+    c.add([playBtn, armoryBtn]);
+  }
+
+  // --- 2. PLAY SUB-SELECTION VIEW ---
+  buildPlaySelectView() {
+    const c = this.viewContainers.play_select;
+
+    const titleText = this.add.text(W/2, 90, 'Select Game Mode', {
+      fontFamily: 'Bebas Neue', fontSize: '46px', color: '#ffffff'
+    }).setOrigin(0.5).setStroke('#000000', 6);
+    c.add(titleText);
+
+    const arcadeBtn = this.makeButton(W/2 - 150, H - 70, `ARCADE (STAGE ${GameState.stage})`, () => {
+      if (this.showcaseFighter) this.showcaseFighter.destroy();
+      this.scene.start('fight', {vsCPU:true, arcade:true});
+    });
+    const practiceBtn = this.makeButton(W/2 + 150, H - 70, 'PRACTICE ARENA', () => {
+      if (this.showcaseFighter) this.showcaseFighter.destroy();
+      this.scene.start('fight', {vsCPU:true, arcade:false});
+    });
+    const backBtn = this.makeButton(W/2, 160, 'BACK', () => {
+      this.switchView('main');
+    });
+    backBtn.setScale(0.7); // make back button slightly smaller and higher up
+
+    c.add([arcadeBtn, practiceBtn, backBtn]);
+  }
+
+  // --- 3. ARMORY SHOP VIEW (CLEAN SINGLE PAGE) ---
+  buildShopView() {
+    const c = this.viewContainers.shop;
+
+    // Header
+    const titleText = this.add.text(W/2, 45, 'ARMORY WEAPONS', {
+      fontFamily: 'Bebas Neue', fontSize: '36px', color: '#ffaa00'
+    }).setOrigin(0.5).setStroke('#000000', 5);
+    
+    const coinsText = this.add.text(W/2, 85, `YOUR COINS: ${GameState.coins} C`, {
+      fontFamily: 'Oswald', fontSize: '15px', color: '#ffffff'
+    }).setOrigin(0.5);
+
+    const backBtn = this.makeButton(80, 45, 'BACK', () => {
+      this.switchView('main');
+    });
+    backBtn.setScale(0.75);
+
+    c.add([titleText, coinsText, backBtn]);
+
+    // Build scroll/grid-like list of weapon cards
+    this.shopCards = [];
+    this.renderShopCards(c);
+  }
+
+  renderShopCards(container) {
+    // Clear old ones
+    this.shopCards.forEach(item => { if(item.destroy) item.destroy(); });
+    this.shopCards = [];
+
+    const keys = Object.keys(WEAPONS);
+    const startX = W/2 - 380;
+    const stepX = 190;
+    const y = 250;
+
+    keys.forEach((key, index) => {
+      const wep = WEAPONS[key];
+      const x = startX + index * stepX;
+
+      // Card backplate
+      const plate = this.add.rectangle(x, y, 172, 230, 0x1f1730, 0.85).setOrigin(0.5).setStrokeStyle(2, 0xffffff, 0.15);
+      
+      const title = this.add.text(x, y - 95, wep.name.toUpperCase(), {
+        fontFamily: 'Bebas Neue', fontSize: '16px', color: '#ffffff'
+      }).setOrigin(0.5);
+
+      const desc = this.add.text(x, y - 45, wep.desc, {
+        fontFamily: 'Oswald', fontSize: '10px', color: '#aaaaaa', align: 'center', wordWrap: { width: 150 }
+      }).setOrigin(0.5);
+
+      const stats = this.add.text(x, y + 25, `DMG: +${Math.round((wep.dmg-1)*100)}%\nRANGE: ${wep.range}px`, {
+        fontFamily: 'Oswald', fontSize: '11px', color: '#ff9633', align: 'center'
+      }).setOrigin(0.5);
+
+      container.add([plate, title, desc, stats]);
+      this.shopCards.push(plate, title, desc, stats);
+
+      const isOwned = GameState.ownedWeapons.includes(wep.id);
+      const isEquipped = GameState.equippedWeapon === wep.id;
+
+      if (isEquipped) {
+        const eqLabel = this.add.text(x, y + 80, 'EQUIPPED', {
+          fontFamily: 'Bebas Neue', fontSize: '15px', color: '#00ff66'
+        }).setOrigin(0.5);
+        container.add(eqLabel);
+        this.shopCards.push(eqLabel);
+      } else if (isOwned) {
+        const btn = this.add.rectangle(x, y + 80, 110, 28, 0x0084ff, 0.95).setOrigin(0.5).setInteractive({useHandCursor:true}).setStrokeStyle(1.5, 0xffffff);
+        const txt = this.add.text(x, y + 80, 'EQUIP', {fontFamily: 'Bebas Neue', fontSize: '14px', color: '#ffffff'}).setOrigin(0.5);
+        
+        btn.on('pointerover', () => btn.setFillStyle(0x0099ff, 1));
+        btn.on('pointerout', () => btn.setFillStyle(0x0084ff, 0.95));
+        btn.on('pointerdown', () => {
+          GameState.equippedWeapon = wep.id;
+          if (this.showcaseFighter) {
+            this.showcaseFighter.destroy();
+            this.showcaseFighter = new Fighter(this, W/2, H - 90, PALETTE.p1Color, PALETTE.p1Stroke, 1, 'SHOWCASE', GameState.equippedWeapon);
+            this.showcaseFighter.g.setScale(1.25);
+            this.showcaseFighter.shadowG.setScale(1.25);
+          }
+          this.renderShopCards(container); // Re-render card grid
+        });
+        
+        container.add([btn, txt]);
+        this.shopCards.push(btn, txt);
+      } else {
+        const canBuy = GameState.coins >= wep.cost;
+        const btnColor = canBuy ? 0xffaa00 : 0x444444;
+        const btn = this.add.rectangle(x, y + 80, 110, 28, btnColor, 0.95).setOrigin(0.5).setStrokeStyle(1.5, canBuy?0xffffff:0x666666);
+        const txt = this.add.text(x, y + 80, `${wep.cost} C`, {fontFamily: 'Bebas Neue', fontSize: '14px', color: '#ffffff'}).setOrigin(0.5);
+        
+        if (canBuy) {
+          btn.setInteractive({useHandCursor:true});
+          btn.on('pointerover', () => btn.setFillStyle(0xff9900, 1));
+          btn.on('pointerout', () => btn.setFillStyle(0xffaa00, 0.95));
+          btn.on('pointerdown', () => {
+            GameState.addCoins(-wep.cost);
+            GameState.ownedWeapons.push(wep.id);
+            GameState.equippedWeapon = wep.id; 
+            
+            // Re-draw whole scene to update coins display
+            if (this.showcaseFighter) this.showcaseFighter.destroy();
+            this.scene.restart(); 
+          });
+        }
+        
+        container.add([btn, txt]);
+        this.shopCards.push(btn, txt);
+      }
+    });
+  }
+
+  makeButton(x, y, label, cb){
+    const w = 220, h = 46;
+    // Transparent black background button with thick neon orange border (Handcrafted / No AI-Gen Clutter)
+    const btnContainer = this.add.container(x, y).setDepth(15);
+    const bg = this.add.rectangle(0, 0, w, h, 0x0c0715, 0.9).setStrokeStyle(2.5, 0xffaa00, 1.0).setOrigin(0.5).setInteractive({useHandCursor:true});
+    const txt = this.add.text(0, 0, label, {fontFamily: 'Bebas Neue', fontSize: '20px', color: '#ffffff'}).setOrigin(0.5).setStroke('#000000', 4);
+    
+    bg.on('pointerover', () => bg.setStrokeStyle(3, 0xffffff, 1.0));
+    bg.on('pointerout', () => bg.setStrokeStyle(2.5, 0xffaa00, 1.0));
+    bg.on('pointerdown', cb);
+
+    btnContainer.add([bg, txt]);
+    return btnContainer;
+  }
+}
+
+const config = {
+  type: Phaser.WEBGL,
+  width: W, height: H,
+  parent: 'game-wrap',
+  backgroundColor: '#0c0715',
+  scale: { mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH, orientation: Phaser.Scale.LANDSCAPE },
+  scene: [MenuScene, FightScene]
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
