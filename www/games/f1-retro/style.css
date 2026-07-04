@@ -530,12 +530,17 @@ body {
         bottom: 0;
         border: none;
         border-radius: 0;
+        align-items: flex-start; /* Fix for tall menus getting cut off vertically */
+        padding: 10px 0;
     }
     .menu-content {
         max-width: 100%;
         padding: 15px;
         gap: 12px;
         border: none;
+        margin-top: 10px;
+        overflow-y: auto;
+        max-height: 90vh;
     }
     .menu-content h1 {
         font-size: 1.5rem;

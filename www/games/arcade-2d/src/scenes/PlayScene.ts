@@ -64,8 +64,12 @@ export class PlayScene extends Phaser.Scene {
 
   // Levels database
   private readonly LEVEL_MAPS = [
-    // Level 1: Introduction
+    // Level 1: Introduction (Easier gaps)
     [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
       "................................",
       "................................",
       "................................",
@@ -77,22 +81,27 @@ export class PlayScene extends Phaser.Scene {
       ".................B..............",
       "..............GGGGGG............",
       "................................",
-      ".........GGGG........GGGG.......",
+      ".........GGGGG.......GGGGG......",
       "................................",
-      ".....GGGG................GGGG...",
+      ".....GGGGG...............GGGGG..",
       "................................",
       "............B.......B...........",
-      "....@......GGG.....GGG......P...",
-      "....GG......................GG..",
+      "....@.....GGGGG...GGGGG.....P...",
+      "....GGGG....................GG..",
       "....DD..B................B..DD..",
-      "....DDGGGG.............GGGGDDD..",
-      "....DDDDDDXXXXXXXXXXXXXDDDDDDD..",
-      "....DDDDDDXXXXXXXXXXXXXDDDDDDD..",
-      "....DDDDDDXXXXXXXXXXXXXDDDDDDD..",
-      "....DDDDDDXXXXXXXXXXXXXDDDDDDD.."
+      "....DDGGGGGG.........GGGGGGDDD..",
+      "....DDDDDDDDXXXX.XXXXDDDDDDDDD..",
+      "....DDDDDDDDXXXX.XXXXDDDDDDDDD..",
+      "....DDDDDDDDXXXX.XXXXDDDDDDDDD..",
+      "....DDDDDDDDXXXX.XXXXDDDDDDDDD.."
     ],
-    // Level 2: Wall Jumps & Vertical Ascent (Modified to be slightly easier with safety platforms)
+    // Level 2: Wall Jumps & Vertical Ascent
     [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
       "............................P...",
       "..........................GGGG..",
       "..........................DDDD..",
@@ -103,7 +112,7 @@ export class PlayScene extends Phaser.Scene {
       "..........GGGG....DDDD....DDDD..",
       "..........DDDD....DDDD....DDDD..",
       "....B.....DDDD....DDDD....DDDD..",
-      "..GGGG....DDDD..SSSS..SSSSDDDD..",
+      "..GGGG....DDDD..SSSSS.SSSSDSDD..",
       "..DDDD....DDDD....DDDD....DDDD..",
       "..DDDD....DDDD....DDDD....DDDD..",
       "..DDDD....DDDD....DDDD....DDDD..",
@@ -111,15 +120,19 @@ export class PlayScene extends Phaser.Scene {
       "..DDDD....DDDD....DDDD....DDDD..",
       "..DDDD....DDDD............DDDD..",
       "..DDDD....DDDD..B......B..DDDD..",
-      "..DDDD@...DDDD.GGGG..GGGG.DDDD..",
-      "..DDDDGG..DDDD.DDDD..DDDD.DDDD..",
-      "..DDDDDDXXDDDD.DDDD..DDDD.DDDD..",
-      "..DDDDDDXXDDDD.DDDD..DDDD.DDDD..",
-      "..DDDDDDXXDDDD.DDDD..DDDD.DDDD..",
-      "..DDDDDDXXDDDD.DDDD..DDDD.DDDD.."
+      "..DDDD@...DDDD.GGGGG.GGGGGDDDD..",
+      "..DDDDGG..DDDD.DDDDDD.DDDDDDDD..",
+      "..DDDDDDXXDDDD.DDDDDD.DDDDDDDD..",
+      "..DDDDDDXXDDDD.DDDDDD.DDDDDDDD..",
+      "..DDDDDDXXDDDD.DDDDDD.DDDDDDDD..",
+      "..DDDDDDXXDDDD.DDDDDD.DDDDDDDD.."
     ],
-    // Level 3: Stone Maze Obstacle Course (Modified to provide clear openings for boxes & C-shape portal frame)
+    // Level 3: Stone Maze Obstacle Course
     [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
       "................................",
       "................................",
       "................................",
@@ -130,7 +143,7 @@ export class PlayScene extends Phaser.Scene {
       "....S.S.S.....SSSSS......SSS....",
       "....S...S.....S...S.............",
       "....S.B.S.....S.B.S.............",
-      "....SSSSS.....S.S.S.............",
+      "....SSSSS.....SSSSS.............",
       "................................",
       "..........SSS.....SSS...........",
       "..........S.S.....S.S...........",
@@ -507,11 +520,11 @@ export class PlayScene extends Phaser.Scene {
 
     // Horizontal Acceleration logic
     if (moveLeft) {
-      body.setAccelerationX(-1200);
+      body.setAccelerationX(-1600);
       if (body.velocity.x > 0) {
         body.setVelocityX(body.velocity.x * 0.9); // Quick turn friction
       }
-      body.setMaxVelocity(320, 1000);
+      body.setMaxVelocity(400, 1000);
 
       // Shifting eyes left and tilt body
       this.playerFaceSprite.x = -3;
@@ -519,11 +532,11 @@ export class PlayScene extends Phaser.Scene {
       this.playerBodySprite.setAngle(-6);
       this.playerFaceSprite.setAngle(-6);
     } else if (moveRight) {
-      body.setAccelerationX(1200);
+      body.setAccelerationX(1600);
       if (body.velocity.x < 0) {
         body.setVelocityX(body.velocity.x * 0.9); // Quick turn friction
       }
-      body.setMaxVelocity(320, 1000);
+      body.setMaxVelocity(400, 1000);
 
       // Shifting eyes right and tilt body
       this.playerFaceSprite.x = 3;
@@ -553,7 +566,7 @@ export class PlayScene extends Phaser.Scene {
     if (jumpPressed) {
       if (body.blocked.down || time <= this.coyoteTimeCounter) {
         // Regular Jump
-        body.setVelocityY(-560);
+        body.setVelocityY(-620);
         this.coyoteTimeCounter = 0; // Reset coyote time
         
         // Jump stretch animation (body and face)
@@ -568,8 +581,8 @@ export class PlayScene extends Phaser.Scene {
       } else if (!body.blocked.down) {
         // Wall bounce jumps (Left or Right wall contact)
         if (body.blocked.left) {
-          body.setVelocityY(-480);
-          body.setVelocityX(340);
+          body.setVelocityY(-540);
+          body.setVelocityX(380);
           this.wallJumpLockTimer = time + 160; // Lock inputs slightly
 
           this.tweens.add({
@@ -581,8 +594,8 @@ export class PlayScene extends Phaser.Scene {
             ease: 'Cubic.Out'
           });
         } else if (body.blocked.right) {
-          body.setVelocityY(-480);
-          body.setVelocityX(-340);
+          body.setVelocityY(-540);
+          body.setVelocityX(-380);
           this.wallJumpLockTimer = time + 160; // Lock inputs slightly
 
           this.tweens.add({
