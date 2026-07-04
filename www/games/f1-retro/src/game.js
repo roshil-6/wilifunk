@@ -1216,8 +1216,8 @@ function initGame() {
 
         menuOverlay.classList.add('hidden');
         
-        // Show/hide HTML virtual joystick container
-        if (controlStyle === 'joystick') {
+        // Show/hide HTML virtual controls container
+        if (controlStyle === 'joystick' || controlStyle === 'wheel') {
             joystickContainer.classList.remove('hidden');
         } else {
             joystickContainer.classList.add('hidden');

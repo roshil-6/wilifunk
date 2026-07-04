@@ -24,8 +24,9 @@ class ShopScene extends Phaser.Scene {
 
         // Back button
         const back = this.add.text(75, 88, '◄ BACK', {
-            font: 'bold 16px Courier', fill: '#888888'
-        }).setInteractive({ useHandCursor: true });
+            font: 'bold 24px Courier', fill: '#888888'
+        }).setInteractive({ useHandCursor: true })
+          .setPadding(20);
         back.on('pointerover', () => back.setFill('#ffffff'));
         back.on('pointerout',  () => back.setFill('#888888'));
         back.on('pointerdown', () => {
@@ -121,8 +122,7 @@ class ShopScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // --- Interactive hit zone ---
-        const zone = this.add.rectangle(x, y, W, H, 0, 0)
-            .setInteractive({ useHandCursor: true });
+        const zone = this.add.zone(x, y, W, H).setInteractive({ useHandCursor: true });
 
         zone.on('pointerover', () => {
             this.tweens.add({ targets: cardGfx, alpha: 0.85, duration: 80 });
