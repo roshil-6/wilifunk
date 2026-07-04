@@ -22,11 +22,101 @@
 }
 
 body {
-    background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-mid) 50%, var(--bg-light) 100%);
+    background: radial-gradient(circle at 50% 0%, #471b71, #140b26 80%);
+    background-attachment: fixed;
     color: var(--text-main);
     font-family: 'Sora', sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
+    position: relative;
+    z-index: 0;
+}
+
+/* Premium Violet Starfield Background */
+body::before, body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: -2;
+    pointer-events: none;
+}
+
+body::before {
+    background-image: 
+        radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0,0,0,0)),
+        radial-gradient(1px 1px at 40px 70px, #ffffff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 90px 40px, #ffffff, rgba(0,0,0,0)),
+        radial-gradient(1.5px 1.5px at 160px 120px, #d8c9f3, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    animation: twinkle 5s infinite linear;
+}
+
+body::after {
+    background: radial-gradient(circle at 50% 100%, rgba(139, 92, 255, 0.15), transparent 70%);
+    z-index: -1;
+}
+
+@keyframes twinkle {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.7; }
+}
+
+/* TOP BRANDING & BIRD */
+.top-branding {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 10px 20px;
+}
+
+.honeypot-brand {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #FF5BBE;
+    text-shadow: 0 0 10px rgba(255, 91, 190, 0.5);
+}
+
+.bird-quote-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.pixel-bird {
+    font-size: 2rem;
+    animation: hoverBird 2s infinite ease-in-out alternate;
+}
+
+@keyframes hoverBird {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-5px); }
+}
+
+.speech-bubble {
+    position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px 15px;
+    border-radius: 15px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    color: #D8C9F3;
+    max-width: 300px;
+}
+
+.speech-bubble::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 5px 10px 5px 0;
+    border-style: solid;
+    border-color: transparent rgba(255, 255, 255, 0.2) transparent transparent;
 }
 
 /* HUB UI */
@@ -64,20 +154,23 @@ body {
 }
 
 .game-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
+    background: rgba(33, 16, 60, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(200, 107, 255, 0.3);
     border-radius: 24px;
     overflow: hidden;
     cursor: pointer;
-    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: flex;
     flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .game-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(139, 92, 255, 0.2);
-    border-color: var(--secondary);
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(255, 91, 190, 0.4), inset 0 0 15px rgba(139, 92, 255, 0.3);
+    border-color: #FF5BBE;
 }
 
 .card-image {
@@ -91,6 +184,8 @@ body {
 .arcade-bg { background-image: linear-gradient(to bottom, rgba(33,16,60,0.2), var(--bg-mid)), url('arcade_bg.png'); }
 .shasticks-bg { background-image: linear-gradient(to bottom, rgba(33,16,60,0.2), var(--bg-mid)), url('shasticks_bg.png'); }
 .f1-bg { background-image: linear-gradient(to bottom, rgba(33,16,60,0.2), var(--bg-mid)), url('f1_bg.png'); }
+.crosser-bg { background-image: linear-gradient(to bottom, rgba(33,16,60,0.2), var(--bg-mid)), url('infinite_crosser_bg.png'); }
+.maze-stealth-bg { background-image: linear-gradient(to bottom, rgba(33,16,60,0.2), var(--bg-mid)), url('maze_stealth_bg.png'); background-position: center; }
 
 .card-content {
     padding: 24px;
@@ -114,20 +209,23 @@ body {
 }
 
 .play-btn {
-    background: linear-gradient(90deg, var(--primary), var(--accent));
+    background: linear-gradient(90deg, #FF5BBE, #C86BFF);
     color: white;
     border: none;
     border-radius: 12px;
     padding: 12px 0;
     font-family: 'Sora', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
+    font-weight: 800;
+    font-size: 1.1rem;
     cursor: pointer;
-    transition: opacity 0.2s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(255, 91, 190, 0.3);
+    letter-spacing: 1px;
 }
 
 .game-card:hover .play-btn {
-    opacity: 0.9;
+    box-shadow: 0 0 20px rgba(255, 91, 190, 0.8);
+    transform: scale(1.05);
 }
 
 /* IFRAME CONTAINER */
@@ -139,16 +237,48 @@ body {
     height: 100vh;
     background: #000;
     z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 #gameContainer.hidden {
-    display: none;
+    display: none !important;
 }
 
 #gameFrame {
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     border: none;
+    display: block;
+}
+
+/* CLEAN PC VIEW */
+@media screen and (min-width: 800px) {
+    #gameContainer {
+        background: rgba(10, 5, 20, 0.95);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+    }
+
+    #gameFrame {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #000;
+    }
+
+    #gameContainer.portrait #gameFrame {
+        max-width: 500px;
+        max-height: 850px;
+    }
+
+    #gameContainer.landscape #gameFrame {
+        max-width: 1280px;
+        max-height: 720px;
+    }
 }
 
 #backToHubBtn {
@@ -174,4 +304,85 @@ body {
 #backToHubBtn:hover {
     background: var(--primary);
     border-color: var(--primary);
+}
+
+/* FOOTER */
+.hub-footer {
+    margin-top: 50px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+}
+
+.gaming-quotes {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    color: #a78bfa;
+    font-style: italic;
+    line-height: 1.6;
+}
+
+.footer-rights {
+    text-align: right;
+    font-family: 'Sora', sans-serif;
+    font-size: 0.9rem;
+    color: #D8C9F3;
+}
+
+.honeypot-logo {
+    font-size: 1.2rem;
+}
+
+/* SPLASH SCREEN */
+#splashScreen {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: #0d0d1a;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+#splashScreen.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.splash-logo {
+    width: 200px;
+    height: auto;
+    border-radius: 20px;
+    box-shadow: 0 0 40px rgba(255, 91, 190, 0.4);
+    animation: pulseLogo 2s infinite alternate;
+}
+
+@keyframes pulseLogo {
+    0% { transform: scale(1); filter: drop-shadow(0 0 10px rgba(255, 91, 190, 0.5)); }
+    100% { transform: scale(1.05); filter: drop-shadow(0 0 25px rgba(255, 91, 190, 0.9)); }
+}
+
+.loading-bar {
+    margin-top: 40px;
+    width: 250px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.loading-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #FF5BBE, #C86BFF);
+    animation: loadingAnim 2s ease-in-out forwards;
+}
+
+@keyframes loadingAnim {
+    0% { width: 0%; }
+    100% { width: 100%; }
 }

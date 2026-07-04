@@ -3,26 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Wilifunk Arcade</title>
-    <meta name="description" content="Welcome to the Wilifunk Arcade! Play the best retro, arcade, and indie games including Space Rocket, 2D F1, and Shasticks directly in your browser.">
-    <meta name="keywords" content="wilifunk, arcade, games, retro games, f1 racing, 2d games, html5 games, free games">
-    <meta property="og:title" content="Wilifunk Arcade">
+    <title>Arcade - Wilifunk Arcade Games</title>
+    <!-- Core SEO -->
+    <meta name="description" content="Welcome to the Wilifunk Arcade! Play the best retro, arcade, and indie games including Space Rocket, Infinite Crosser, 2D F1, and Shasticks directly in your browser.">
+    <meta name="keywords" content="wilifunk, arcade, games, retro games, f1 racing, 2d games, html5 games, free games, online arcade">
+    <meta name="author" content="Honeypot Gaming">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://arcade.wilifunk.com/">
+    
+    <!-- Open Graph (Facebook / LinkedIn) -->
+    <meta property="og:title" content="Arcade - Wilifunk Arcade Games">
     <meta property="og:description" content="Play the best retro and arcade games including Space Rocket, 2D F1, and Shasticks directly in your browser.">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://arcade.wilifunk.com/">
+    <meta property="og:image" content="honeypot_logo.jpg">
+    <meta property="og:site_name" content="Wilifunk Arcade">
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Arcade - Wilifunk Arcade Games">
+    <meta name="twitter:description" content="Play the best retro and arcade games directly in your browser.">
+    <meta name="twitter:image" content="honeypot_logo.jpg">
+
+    <!-- JSON-LD Structured Data for Google Console -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Wilifunk Arcade",
+      "url": "https://arcade.wilifunk.com/",
+      "description": "Play the best retro and arcade games directly in your browser.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Honeypot Gaming",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://arcade.wilifunk.com/honeypot_logo.jpg"
+        }
+      }
+    }
+    </script>
+
     <link rel="icon" type="image/png" href="favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;800&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="hubUI" class="hub-container">
+        <!-- TOP BRANDING & BIRD QUOTE -->
+        <div class="top-branding">
+            <div class="honeypot-brand">
+                <img src="honeypot_logo.jpg" alt="Logo" style="height:32px; border-radius:8px; margin-right:10px; vertical-align:middle;">
+                Honeypot Gaming
+            </div>
+            <div class="bird-quote-container">
+                <span class="pixel-bird">🐦</span>
+                <div class="speech-bubble">"this is a new web based gaming pllatform growing iventually with you"</div>
+            </div>
+        </div>
+
         <header class="hub-header">
-            <h1 class="hub-title">Wilifunk Arcade</h1>
+            <h1 class="hub-title">Arcade - Wilifunk Arcade Games</h1>
             <p class="hub-subtitle">Choose your next adventure</p>
         </header>
 
         <div class="games-grid">
             <!-- Space Rocket -->
-            <div class="game-card" onclick="launchGame('games/space-rocket/index.html')">
+            <div class="game-card" onclick="launchGame('games/space-rocket/index.html', 'portrait')">
                 <div class="card-image space-rocket-bg"></div>
                 <div class="card-content">
                     <h2>Space Rocket</h2>
@@ -32,35 +79,75 @@
             </div>
 
             <!-- Arcade Game 2D -->
-            <div class="game-card" onclick="launchGame('games/arcade-2d/dist/index.html')">
+            <div class="game-card" onclick="launchGame('games/arcade-2d/dist/index.html', 'landscape')">
                 <div class="card-image arcade-bg"></div>
                 <div class="card-content">
                     <h2>Arcade 2D</h2>
-                    <p>Classic T-Rex and Hunter action. Jump and survive!</p>
+                    <p>Elastic physics platformer! Wall-jump and bound across tricky obstacles.</p>
                     <button class="play-btn">PLAY</button>
                 </div>
             </div>
 
-            <!-- Shasticks -->
-            <div class="game-card" onclick="launchGame('games/shasticks/index.html')">
+            <!-- Shasticks Math -->
+            <div class="game-card" onclick="launchGame('games/shasticks/index.html', 'landscape')">
                 <div class="card-image shasticks-bg"></div>
                 <div class="card-content">
-                    <h2>Shasticks 2D</h2>
-                    <p>Action packed 2D fun. Coming soon.</p>
+                    <h2>Shasticks Math</h2>
+                    <p>Challenge your brain with fast-paced arithmetic equations and logic puzzles.</p>
+                    <button class="play-btn">PLAY</button>
+                </div>
+            </div>
+
+            <!-- Maze Stealth -->
+            <div class="game-card" onclick="launchGame('games/maze-stealth/index.html', 'portrait')">
+                <div class="card-image maze-stealth-bg"></div>
+                <div class="card-content">
+                    <h2>Maze Stealth</h2>
+                    <p>Hide, seek, and solve tactical puzzles to escape the AI guards!</p>
                     <button class="play-btn">PLAY</button>
                 </div>
             </div>
 
             <!-- F1 Retro Arcade -->
-            <div class="game-card" onclick="launchGame('games/f1-retro/index.html')">
+            <div class="game-card" onclick="launchGame('games/f1-retro/index.html', 'portrait')">
                 <div class="card-image f1-bg"></div>
                 <div class="card-content">
                     <h2>F1 Retro Arcade</h2>
-                    <p>High speed retro racing. Coming soon.</p>
+                    <p>A classic top-down 8-bit racing experience! Dodge opponents and hit top speeds.</p>
                     <button class="play-btn">PLAY</button>
                 </div>
             </div>
-        </div>
+
+            <!-- Infinite Crosser -->
+            <div class="game-card" onclick="launchGame('games/infinite-crosser/index.html', 'portrait')">
+                <div class="card-image crosser-bg"></div>
+                <div class="card-content">
+                    <h2>Infinite Crosser</h2>
+                    <p>Dodge traffic and cross endless roads in this intense hyper-casual hopper.</p>
+                    <button class="play-btn">PLAY</button>
+                </div>
+            </div>
+        </div> <!-- End Games Grid -->
+
+        <!-- FOOTER: QUOTES AND RIGHTS -->
+        <footer class="hub-footer">
+            <div class="gaming-quotes">
+                "It's dangerous to go alone! Take this."<br>
+                "The cake is a lie."<br>
+                "Finish him!"
+            </div>
+            <div class="footer-rights">
+                <span class="honeypot-logo">🍯</span> Honeypot Gaming<br>
+                &copy; 2026 All Rights Reserved
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Splash Screen -->
+    <div id="splashScreen" class="hidden">
+        <img src="honeypot_logo.jpg" alt="Honeypot Gaming" class="splash-logo">
+        <div class="loading-bar"><div class="loading-fill"></div></div>
     </div>
 
     <!-- Iframe Container for Games -->

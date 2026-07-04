@@ -1258,13 +1258,14 @@ class MenuScene extends Phaser.Scene {
     this.buildShopView();
 
     // Fullscreen toggle button
-    const fsBtn = this.add.text(W - 35, 30, '⛶', { fontFamily: 'Oswald', fontSize: '26px', color: '#ffaa00' })
+    const fsBtn = this.add.text(W - 45, 40, '⛶', { fontFamily: 'Oswald', fontSize: '36px', color: '#ffaa00' })
       .setOrigin(0.5)
       .setDepth(20)
+      .setPadding(15, 15, 15, 15) // Massive touch area for mobile
       .setInteractive({ useHandCursor: true });
     fsBtn.on('pointerover', () => fsBtn.setColor('#ffffff'));
     fsBtn.on('pointerout', () => fsBtn.setColor('#ffaa00'));
-    fsBtn.on('pointerdown', () => {
+    fsBtn.on('pointerup', () => {
       if (this.scale.isFullscreen) {
         this.scale.stopFullscreen();
       } else {
