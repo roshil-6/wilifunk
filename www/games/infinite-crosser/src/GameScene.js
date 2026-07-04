@@ -132,6 +132,26 @@ class GameScene extends Phaser.Scene {
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
+        
+        // Touch/Swipe Input
+        this.pendingSwipe = null;
+        this.input.on('pointerdown', (pointer) => {
+            if (this.isDead || this.hasWon) return;
+            this.touchStartX = pointer.x;
+            this.touchStartY = pointer.y;
+        });
+        this.input.on('pointerup', (pointer) => {
+            if (this.isDead || this.hasWon) return;
+            const dx = pointer.x - this.touchStartX;
+            const dy = pointer.y - this.touchStartY;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (Math.abs(dx) > 30) this.pendingSwipe = { dx: dx > 0 ? this.GRID : -this.GRID, dy: 0 };
+            } else {
+                if (dy < -30) this.pendingSwipe = { dx: 0, dy: -this.GRID };
+                else if (dy > 30) this.pendingSwipe = { dx: 0, dy: this.GRID };
+                else this.pendingSwipe = { dx: 0, dy: -this.GRID }; // tap moves forward
+            }
+        });
 
         // Launch UI overlay
         this.scene.launch('UIScene');
@@ -296,6 +316,11 @@ class GameScene extends Phaser.Scene {
         else if (Phaser.Input.Keyboard.JustDown(this.cursors.down)) dy = this.GRID;
         else if (Phaser.Input.Keyboard.JustDown(this.cursors.left)) dx = -this.GRID;
         else if (Phaser.Input.Keyboard.JustDown(this.cursors.right)) dx = this.GRID;
+        else if (this.pendingSwipe) {
+            dx = this.pendingSwipe.dx;
+            dy = this.pendingSwipe.dy;
+            this.pendingSwipe = null;
+        }
 
         if ((dx === 0 && dy === 0)) return;
 

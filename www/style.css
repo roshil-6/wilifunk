@@ -175,9 +175,16 @@ body::after {
 
 .card-image {
     height: 120px;
-    background-size: cover;
-    background-position: center;
     border-bottom: 1px solid var(--card-border);
+    overflow: hidden;
+}
+
+.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
 }
 
 .space-rocket-bg { background-image: linear-gradient(to bottom, transparent, var(--bg-mid)), url('games/space-rocket/hero-menu-bg.png'); }
