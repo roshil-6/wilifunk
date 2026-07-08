@@ -41,15 +41,18 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointermove', p => { this.paddleX = Phaser.Math.Clamp(p.x, this.paddleW/2, W - this.paddleW/2); });
     this.input.on('pointerdown', () => { if (!this.ballActive) { this.ballActive = true; this._msg.setVisible(false); } });
 
-    // Mobile left/right buttons
+    // Mobile left/right zones
     const isMobile = window.matchMedia('(pointer: coarse)').matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     if (isMobile) {
-      const lBtn = this.add.rectangle(50, H - 40, 90, 60, 0x003344, 0.5).setInteractive().setDepth(10);
-      this.add.text(50, H - 40, '◀', { fontSize: '28px', color: '#00ffff' }).setOrigin(0.5).setDepth(10);
-      const rBtn = this.add.rectangle(W - 50, H - 40, 90, 60, 0x003344, 0.5).setInteractive().setDepth(10);
-      this.add.text(W - 50, H - 40, '▶', { fontSize: '28px', color: '#00ffff' }).setOrigin(0.5).setDepth(10);
-      lBtn.on('pointerdown', () => { this._mleft = true; }).on('pointerup', () => { this._mleft = false; }).on('pointerout', () => { this._mleft = false; });
-      rBtn.on('pointerdown', () => { this._mright = true; }).on('pointerup', () => { this._mright = false; }).on('pointerout', () => { this._mright = false; });
+      const lZone = this.add.zone(0, 0, W/2, H).setOrigin(0, 0).setInteractive();
+      const rZone = this.add.zone(W/2, 0, W/2, H).setOrigin(0, 0).setInteractive();
+      
+      // Visual hints
+      this.add.text(W/4, H - 40, '◀', { fontSize: '32px', color: '#00ffff' }).setOrigin(0.5).setAlpha(0.3);
+      this.add.text(W*0.75, H - 40, '▶', { fontSize: '32px', color: '#00ffff' }).setOrigin(0.5).setAlpha(0.3);
+      
+      lZone.on('pointerdown', () => { this._mleft = true; }).on('pointerup', () => { this._mleft = false; }).on('pointerout', () => { this._mleft = false; });
+      rZone.on('pointerdown', () => { this._mright = true; }).on('pointerup', () => { this._mright = false; }).on('pointerout', () => { this._mright = false; });
     }
     this._mleft = false; this._mright = false;
     this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
