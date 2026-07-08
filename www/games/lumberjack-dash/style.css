@@ -1,0 +1,45 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+}
+canvas {
+    display: block;
+}
+
+#game-container {
+    width: 100vw;
+    height: 100vh;
+}
+
+#mobile-controls {
+    display: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 60vh;
+    z-index: 100;
+}
+
+.control-btn {
+    width: 50%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-sizing: border-box;
+    float: left;
+    outline: none;
+    color: transparent;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+}
+.control-btn:active {
+    background: rgba(255, 255, 255, 0.15);
+}

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Color Switcher</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="mobile-controls" style="display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; pointer-events: none;">
+        <button id="btn-switch" style="pointer-events: auto; position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 350px; height: 80px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.4); border-radius: 40px; color: white; font-size: 24px; font-weight: bold; backdrop-filter: blur(4px);">TAP TO SWITCH</button>
+    </div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
