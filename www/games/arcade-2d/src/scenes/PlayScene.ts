@@ -222,7 +222,7 @@ export class PlayScene extends Phaser.Scene {
     this.createTutorialHints();
 
     // Create mobile controls if on mobile device or touch device
-    const isMobileOrTouch = !this.sys.game.device.os.desktop || this.sys.game.device.input.touch;
+    const isMobileOrTouch = !this.sys.game.device.os.desktop || this.sys.game.device.input.touch || window.matchMedia("(pointer: coarse)").matches || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     if (isMobileOrTouch) {
       this.createMobileControls();
     }

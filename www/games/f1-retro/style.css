@@ -128,6 +128,9 @@ body {
 .overlay-container.hidden {
     opacity: 0;
     pointer-events: none;
+}
+
+.hidden {
     display: none !important;
 }
 
@@ -588,12 +591,16 @@ body {
 
 /* Mobile virtual controls styles */
 #mobile-controls-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
     height: 140px;
-    background-color: #1a1a24;
+    background-color: rgba(26, 26, 36, 0.7);
     border-top: 4px solid #111115;
     touch-action: none;
     box-sizing: border-box;
