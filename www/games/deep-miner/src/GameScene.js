@@ -53,13 +53,13 @@ class GameScene extends Phaser.Scene {
         this.depthText = this.add.text(200, 10, 'Depth: 0', {fontSize: '16px', fill: '#ffffff'}).setOrigin(0.5, 0).setDepth(30).setScrollFactor(0);
         this.scoreText = this.add.text(390, 10, 'Score: 0', {fontSize: '16px', fill: '#ffd700', fontStyle: 'bold'}).setOrigin(1, 0).setDepth(30).setScrollFactor(0);
 
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.wasd = {
+        this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
+        this.wasd = this.input.keyboard ? {
             up: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
             down: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
             left: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
             right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-        };
+        } : null;
         this.inputTimer = 0;
 
         this.createMobileControls();
@@ -191,10 +191,10 @@ class GameScene extends Phaser.Scene {
         if (time > this.inputTimer) {
             let dx = 0;
             let dy = 0;
-            if (this.cursors.left.isDown || this.wasd.left.isDown || this.mobileInput === 'left') dx = -1;
-            else if (this.cursors.right.isDown || this.wasd.right.isDown || this.mobileInput === 'right') dx = 1;
-            else if (this.cursors.up.isDown || this.wasd.up.isDown || this.mobileInput === 'up') dy = -1;
-            else if (this.cursors.down.isDown || this.wasd.down.isDown || this.mobileInput === 'down') dy = 1;
+            if ((this.cursors && this.cursors.left.isDown) || (this.wasd && this.wasd.left.isDown) || this.mobileInput === 'left') dx = -1;
+            else if ((this.cursors && this.cursors.right.isDown) || (this.wasd && this.wasd.right.isDown) || this.mobileInput === 'right') dx = 1;
+            else if ((this.cursors && this.cursors.up.isDown) || (this.wasd && this.wasd.up.isDown) || this.mobileInput === 'up') dy = -1;
+            else if ((this.cursors && this.cursors.down.isDown) || (this.wasd && this.wasd.down.isDown) || this.mobileInput === 'down') dy = 1;
 
             if (dx !== 0 || dy !== 0) {
                 this.movePlayer(dx, dy);
@@ -208,7 +208,7 @@ class GameScene extends Phaser.Scene {
         let screenX = this.playerSprite.x - this.cameras.main.scrollX;
         let screenY = this.playerSprite.y - this.cameras.main.scrollY;
         // The hole texture is 320x320, we draw it offset by half its size to center it on the player
-        this.fog.erase('hole', null, screenX - 160, screenY - 160);
+        this.fog.erase('hole', screenX - 160, screenY - 160);
     }
 
     movePlayer(dx, dy) {

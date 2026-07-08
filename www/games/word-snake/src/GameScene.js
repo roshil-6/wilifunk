@@ -56,7 +56,7 @@ class GameScene extends Phaser.Scene {
         this.checkNeededLetter();
 
         // Input Setup
-        this.cursors = this.input.keyboard.createCursorKeys();
+        this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
         this.setupSwipe();
         this.createMobileControls();
 
@@ -67,10 +67,10 @@ class GameScene extends Phaser.Scene {
         if (this.isGameOver) return;
 
         // Keyboard Input
-        if (this.cursors.left.isDown && this.nextDir.x === 0) this.queuedDir = { x: -1, y: 0 };
-        else if (this.cursors.right.isDown && this.nextDir.x === 0) this.queuedDir = { x: 1, y: 0 };
-        else if (this.cursors.up.isDown && this.nextDir.y === 0) this.queuedDir = { x: 0, y: -1 };
-        else if (this.cursors.down.isDown && this.nextDir.y === 0) this.queuedDir = { x: 0, y: 1 };
+        if (this.cursors && this.cursors.left.isDown && this.nextDir.x === 0) this.queuedDir = { x: -1, y: 0 };
+        else if (this.cursors && this.cursors.right.isDown && this.nextDir.x === 0) this.queuedDir = { x: 1, y: 0 };
+        else if (this.cursors && this.cursors.up.isDown && this.nextDir.y === 0) this.queuedDir = { x: 0, y: -1 };
+        else if (this.cursors && this.cursors.down.isDown && this.nextDir.y === 0) this.queuedDir = { x: 0, y: 1 };
 
         this.moveTimer += delta;
         if (this.moveTimer >= this.moveInterval) {
