@@ -44,7 +44,10 @@ class GameScene extends Phaser.Scene {
 
     // Input
     this.input.on('pointerdown', this.flipGravity, this);
-    this.input.keyboard.on('keydown-SPACE', this.flipGravity, this);
+    // Keyboard Input - Safe check
+    if (this.input.keyboard) {
+        this.input.keyboard.on('keydown-SPACE', this.flipGravity, this);
+    }
 
     // Particles
     this.coinParticles = this.add.particles(0, 0, 'coin', {

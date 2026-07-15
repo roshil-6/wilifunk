@@ -47,10 +47,13 @@ class GameScene extends Phaser.Scene {
             strokeThickness: 6
         }).setOrigin(0.5);
 
-        this.input.keyboard.on('keydown-LEFT', () => this.chop('LEFT'));
-        this.input.keyboard.on('keydown-A', () => this.chop('LEFT'));
-        this.input.keyboard.on('keydown-RIGHT', () => this.chop('RIGHT'));
-        this.input.keyboard.on('keydown-D', () => this.chop('RIGHT'));
+        // Keyboard Support - Safe Check
+        if (this.input.keyboard) {
+            this.input.keyboard.on('keydown-LEFT', () => this.chop('LEFT'));
+            this.input.keyboard.on('keydown-A', () => this.chop('LEFT'));
+            this.input.keyboard.on('keydown-RIGHT', () => this.chop('RIGHT'));
+            this.input.keyboard.on('keydown-D', () => this.chop('RIGHT'));
+        }
         
         this.add.rectangle(100, 350, 200, 700, 0x000000, 0).setInteractive().on('pointerdown', () => this.chop('LEFT'));
         this.add.rectangle(300, 350, 200, 700, 0x000000, 0).setInteractive().on('pointerdown', () => this.chop('RIGHT'));

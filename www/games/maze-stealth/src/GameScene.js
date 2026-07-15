@@ -104,8 +104,8 @@ class GameScene extends Phaser.Scene {
         this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
         // Inputs
-        this.cursors = this.input.keyboard.createCursorKeys();
-        this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+        this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
+        this.wasd = this.input.keyboard ? this.input.keyboard.addKeys('W,A,S,D') : null;
 
         // Collisions
         this.physics.add.collider(this.player, this.wallGroup);
@@ -211,10 +211,10 @@ class GameScene extends Phaser.Scene {
         let vx = 0;
         let vy = 0;
 
-        if (this.cursors.left.isDown || this.wasd.A.isDown) vx = -speed;
-        if (this.cursors.right.isDown || this.wasd.D.isDown) vx = speed;
-        if (this.cursors.up.isDown || this.wasd.W.isDown) vy = -speed;
-        if (this.cursors.down.isDown || this.wasd.S.isDown) vy = speed;
+        if ((this.cursors && this.cursors.left.isDown) || (this.wasd && this.wasd.A.isDown)) vx = -speed;
+        if ((this.cursors && this.cursors.right.isDown) || (this.wasd && this.wasd.D.isDown)) vx = speed;
+        if ((this.cursors && this.cursors.up.isDown) || (this.wasd && this.wasd.W.isDown)) vy = -speed;
+        if ((this.cursors && this.cursors.down.isDown) || (this.wasd && this.wasd.S.isDown)) vy = speed;
 
         // Mobile Drag/Touch Support
         if (this.input.activePointer.isDown) {

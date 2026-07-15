@@ -131,7 +131,7 @@ class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.player, this.hazardsGroup, this.playerHit, null, this);
 
         // Input
-        this.cursors = this.input.keyboard.createCursorKeys();
+        this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
         
         // Touch/Swipe Input
         this.pendingSwipe = null;
@@ -312,10 +312,10 @@ class GameScene extends Phaser.Scene {
         if (this.isMoving) return;
 
         let dx = 0, dy = 0;
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.up))    dy = -this.GRID;
-        else if (Phaser.Input.Keyboard.JustDown(this.cursors.down)) dy = this.GRID;
-        else if (Phaser.Input.Keyboard.JustDown(this.cursors.left)) dx = -this.GRID;
-        else if (Phaser.Input.Keyboard.JustDown(this.cursors.right)) dx = this.GRID;
+        if (this.cursors && Phaser.Input.Keyboard.JustDown(this.cursors.up))    dy = -this.GRID;
+        else if (this.cursors && Phaser.Input.Keyboard.JustDown(this.cursors.down)) dy = this.GRID;
+        else if (this.cursors && Phaser.Input.Keyboard.JustDown(this.cursors.left)) dx = -this.GRID;
+        else if (this.cursors && Phaser.Input.Keyboard.JustDown(this.cursors.right)) dx = this.GRID;
         else if (this.pendingSwipe) {
             dx = this.pendingSwipe.dx;
             dy = this.pendingSwipe.dy;
@@ -404,11 +404,19 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
 
         this.time.delayedCall(2000, () => {
-            this.input.on('pointerdown', () => {
+            const restartZone = this.add.zone(400, 300, 800, 600).setInteractive().setScrollFactor(0).setDepth(200);
+            restartZone.on('pointerdown', () => {
                 this.laneTimers.forEach(t => { if (t) t.remove(); });
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene');
             });
+            if (this.cursors) {
+                this.cursors.up.on('down', () => {
+                    this.laneTimers.forEach(t => { if (t) t.remove(); });
+                    this.scene.stop('UIScene');
+                    this.scene.start('MenuScene');
+                });
+            }
         });
     }
 
@@ -532,16 +540,19 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
 
         this.time.delayedCall(2000, () => {
-            this.input.on('pointerdown', () => {
+            const restartZone = this.add.zone(400, 300, 800, 600).setInteractive().setScrollFactor(0).setDepth(200);
+            restartZone.on('pointerdown', () => {
                 this.laneTimers.forEach(t => { if (t) t.remove(); });
                 this.scene.stop('UIScene');
                 this.scene.start('MenuScene');
             });
-            this.cursors.up.on('down', () => {
-                this.laneTimers.forEach(t => { if (t) t.remove(); });
-                this.scene.stop('UIScene');
-                this.scene.start('MenuScene');
-            });
+            if (this.cursors) {
+                this.cursors.up.on('down', () => {
+                    this.laneTimers.forEach(t => { if (t) t.remove(); });
+                    this.scene.stop('UIScene');
+                    this.scene.start('MenuScene');
+                });
+            }
         });
     }
 }

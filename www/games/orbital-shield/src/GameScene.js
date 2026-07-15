@@ -55,10 +55,13 @@ class GameScene extends Phaser.Scene {
     rightZone.on('pointerup', () => { this.rotDir = 0; });
     rightZone.on('pointerout', () => { this.rotDir = 0; });
 
-    this.input.keyboard.on('keydown-LEFT', () => { this.rotDir = -1; });
-    this.input.keyboard.on('keyup-LEFT', () => { this.rotDir = 0; });
-    this.input.keyboard.on('keydown-RIGHT', () => { this.rotDir = 1; });
-    this.input.keyboard.on('keyup-RIGHT', () => { this.rotDir = 0; });
+    // Keyboard Input - Safe Check
+    if (this.input.keyboard) {
+        this.input.keyboard.on('keydown-LEFT', () => { this.rotDir = -1; });
+        this.input.keyboard.on('keyup-LEFT', () => { this.rotDir = 0; });
+        this.input.keyboard.on('keydown-RIGHT', () => { this.rotDir = 1; });
+        this.input.keyboard.on('keyup-RIGHT', () => { this.rotDir = 0; });
+    }
 
     // Tap center to change color
     const centerZone = this.add.circle(this.cx, this.cy, 50, 0x000000, 0).setInteractive();

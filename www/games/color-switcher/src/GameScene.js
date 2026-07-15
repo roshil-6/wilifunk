@@ -69,7 +69,10 @@ export default class GameScene extends Phaser.Scene {
         }
         
         this.input.on('pointerdown', this.handleAction, this);
-        this.input.keyboard.on('keydown-SPACE', this.handleAction, this);
+        // Safe check for keyboard input
+        if (this.input.keyboard) {
+            this.input.keyboard.on('keydown-SPACE', this.handleAction, this);
+        }
         
         this.actionHandler = () => {
             this.handleAction();
