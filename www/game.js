@@ -1,497 +1,2475 @@
-import { hangarUI, rocketListUI, mapUI, missionsUI, cosmeticsUI, storeUI } from './progression-ui.js?v=explore-waves-4';
-import { expedition, pacing, eventFor, nearMiss, decayCombo } from './expedition.js?v=explore-waves-4';
-import { ROCKETS, EXPLORE_BADGES, BALANCE, REGIONS, EVENTS, EXPLORE_MILESTONES, TAP_MILESTONES, COSMETICS, MISSIONS, STORE_ITEMS } from './config.js?v=explore-waves-4';
-import { createSystems, tickSystems, takeImpact, activateSystem, attractCoin, rocketById } from './rocket-systems.js?v=explore-waves-4';
-import { ProgressStore, Analytics, RewardedAds } from './progression.js?v=explore-waves-4';
-import { TapFlight } from './tap-flight.js?v=explore-waves-4';
-import { createTapRenderer, drawSideRocket, drawMine, drawSystemAura } from './tap-renderer.js?v=explore-waves-4';
-import { WIDTH as W, HEIGHT as H, clamp, pilot, steer, sweptDistance, Pool, ZONES, zoneAt } from './flight.js?v=explore-waves-4';
-const $ = id => document.getElementById(id), canvas = $('universe'), ctx = canvas.getContext('2d', { alpha: false });
-const screen = $('screen'), app = $('app');
-const menuArt = typeof Image !== 'undefined' ? new Image() : null;
-if(menuArt) menuArt.src = './art/spacehull-cinematic.png';
-const read = (k, fallback) => { try { const s = localStorage.getItem(k); return s === null ? fallback : JSON.parse(s); } catch { return fallback; } };
-function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { $('storageNotice').hidden = false; } }
-function legacyString(k, fallback) { try { return localStorage.getItem(k) || fallback; } catch { return fallback; } }
-const rockets = ROCKETS;
-let settings = { mode: 'slide', sound: legacyString('wilifunkMuted', 'false') !== 'true', music: false, vibration: true, ...read('spacerootSettings', {}) };
-if (!['slide','arrows','glide'].includes(settings.mode)) settings.mode = 'slide';
-let wallet = Math.max(0, Number(read('wilifunkCoins', 0)) || 0), best = Math.max(0, Number(read('spaceRocketHighScore', 0)) || 0);
-let unlocked = read('wilifunkUnlockedRockets', ['pioneer']); if (!Array.isArray(unlocked)) unlocked = ['pioneer'];
-let selected = legacyString('wilifunkSelectedRocket', 'pioneer'); if (!rockets.some(r => r.id === selected) || !unlocked.includes(selected)) selected = 'pioneer';
-let records = read('spacerootRecords', []); if (!Array.isArray(records)) records = []; records=records.filter(r=>r&&Number.isFinite(r.distance)&&Number.isFinite(r.score)&&r.distance>=0&&r.score>=0);
-const badges = read('spaceRocketBadges', []);
-// Explore's historical keys stay intact. Tap records never enter the Explore collection.
-let activeMode = 'explore', boardMode = 'explore';
-let tapBest = Math.max(0, Number(read('spacehullTapBestScore', 0)) || 0);
-let tapRecords = read('spacehullTapRecords', []);
-if (!Array.isArray(tapRecords)) tapRecords = [];
-tapRecords = tapRecords.filter(r => r && Number.isFinite(r.score) && r.score >= 0).sort((a,b) => b.score-a.score).slice(0,50);
-const progress = new ProgressStore(localStorage), analytics=new Analytics(), ads=new RewardedAds();
-wallet=progress.data.coins;unlocked=progress.data.ownedRockets;selected=progress.data.equippedRocket;best=progress.data.exploreBestScore;records=progress.data.exploreRecords;tapBest=progress.data.tapBestScore;tapRecords=progress.data.tapRecords;settings={...settings,...progress.data.settings};
-let bestDistance=progress.data.exploreBestDistance,trial=null,exp=expedition(),missionTab='daily',mapMode='explore',boardClass='open',boardMetric='distance',rewardQueue=[],rewardReturn='home',runSequence=0;
-rewardQueue.push(...progress.advance('explore',bestDistance),...progress.advance('tap',tapBest));wallet=progress.data.coins;
-const tapFlight = new TapFlight();
-let tapBestAnnounced = false, lastTapTime = 0, activeMagnetTime = 0;
+/**
+ * SPACE ROCKET - Addictive Space Survival Game
+ * Professional Phaser 3 Implementation
+ * Flappy Bird-style mechanics in space
+ */
 
-let state = 'home', page = 'home', ship = pilot(), run, elapsed = 0, launchTime = 0, crashTime = 0, zone = 0, clock = 0, spawnClock = 0, pickupClock = 0, toastTime = 0, preview = 0, tab = 'personal', pausedFrom = 'playing';
-let systems=createSystems(selected);
-let quality = 1, slowFrames = 0, hudClock = 0, pointerId = null;
-const input = { mode: settings.mode, active: false, target: W / 2, axis: 0 }, keys = new Set();
-const obstacles = new Pool(60), pickups = new Pool(35), particles = new Pool(160);
-const motionReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const rnd = (a,b) => a + Math.random() * (b-a);
-let audio, hum, humGain;
-function unlockAudio() { try { audio ||= new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume().catch(()=>{}); if (!hum) { hum = audio.createOscillator(); humGain = audio.createGain(); hum.type = 'sine'; hum.frequency.value = 55; humGain.gain.value = 0; hum.connect(humGain).connect(audio.destination); hum.start(); } } catch {} }
-function tone(freq, duration = .1, type = 'sine', volume = .035) { if (!settings.sound || !audio) return; const o = audio.createOscillator(), g = audio.createGain(); o.type = type; o.frequency.setValueAtTime(freq, audio.currentTime); o.frequency.exponentialRampToValueAtTime(Math.max(20,freq / 2),audio.currentTime+duration); g.gain.setValueAtTime(volume,audio.currentTime); g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration); o.connect(g).connect(audio.destination); o.start(); o.stop(audio.currentTime+duration); }
-function resetInput() { pointerId = null; input.active = false; input.axis = 0; keys.clear(); }
-function notify(text) { $('toast').textContent = text; toastTime = 2.2; $('toast').classList.add('visible'); }
-function button(label, action, cls = '') { return `<button class="button ${cls}" data-action="${action}">${label}</button>`; }
-function rocketMark(side=false) { return `<span class="mode-art ${side?'side-art':''}"><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M14 22 4 39 5 45 15 35 25 35 35 45 36 39 26 22" fill="#d56556"/><path d="M20 2Q8 15 13 39H27Q32 15 20 2" fill="#dce5ef"/><path d="M20 2 15 13H25Z" fill="#d56556"/><ellipse cx="20" cy="23" rx="4" ry="6" fill="#203e59"/><path d="M17 40H23L20 48Z" fill="#72cbf7"/></svg></span>`; }
-function header(title, back = 'home') { return `<header class="page-header"><button class="back" data-action="${back}" aria-label="Back">‹</button><h2>${title}</h2></header>`; }
-function updateItemHud(){
- const m=progress.itemCount('magnet'),k=progress.itemCount('key'),s=progress.itemCount('shield_pack'),f=progress.itemCount('fuel_tank');
- const html=`${m?`🧲${m} `:''}${k?`🔑${k} `:''}${s?`🛡️${s} `:''}${f?`⛽${f}`:''}`;
- if($('exploreItemHud'))$('exploreItemHud').innerHTML=html;
- if($('tapItemHud'))$('tapItemHud').innerHTML=html;
-}
-function triggerDoubleTapConsumable(){
- const now=performance.now();
- if(now-lastTapTime<320){
-  lastTapTime=0;
-  if(progress.itemCount('magnet')>0&&activeMagnetTime<=0){
-   progress.useItem('magnet');activeMagnetTime=8;notify('MAGNET ACTIVATED (8s)');tone(950,.18);
-  }else if(progress.itemCount('shield_pack')>0){
-   progress.useItem('shield_pack');
-   const s=activeMode==='tap'?tapFlight.systems:systems;
-   if(activeMode==='tap')s.shield=Math.max(s.shield,6);
-   else run.shield=Math.max(run.shield,6);
-   notify('SHIELD PACK ACTIVATED');tone(980,.18);
-  }
-  updateItemHud();
- }else lastTapTime=now;
-}
-function show(name) {
- $('flightProgress').hidden=true;page = name; screen.className = ''; resetInput(); toastTime=0; $('toast').textContent=''; $('toast').classList.remove('visible'); $('hud').hidden = true; $('tapHud').hidden = true; $('arrows').hidden = true; $('steerHint').textContent = ''; $('abilityButton').hidden=true; $('eventBanner').textContent='';
- if(['space-map','missions','rocket-list','cosmetics','store','milestone','upgrade','reset-confirm'].includes(name)){showMeta(name);return;}
- if (name === 'tap-result' || name === 'tap-summary') { state='tapover'; showTapResult(name === 'tap-result'); return; }
- if (name === 'tap-tutorial') { showTapTutorial(); return; }
- if (name !== 'crashed' && name !== 'summary' && name !== 'pause') state = 'menu';
- if (name === 'home') {
-  if(trial){selected=trial.previous;trial=null;}
-  state = 'home'; ship = pilot(); zone = 0; particles.clear();
-  screen.className = 'open-home';
-  screen.innerHTML = `<div class="home-utility"><button class="quiet" data-action="space-map" aria-label="Space Map">◎</button><span class="home-wallet">◉ ${wallet}</span><button class="quiet" data-action="store" aria-label="Store" style="font-size:18px">🛒</button><button class="quiet" data-action="settings" aria-label="Settings">⚙</button></div><div class="home-heading"><h1>SPACEHULL</h1><p>EXPLORE. SURVIVE. GO FURTHER.</p></div><nav class="home-nav"><div class="flight-choices">${button('<span class="play-glyph">▶</span><span><strong>EXPLORE</strong><small>Dodge. Survive. Go further.</small></span>','play-explore','flight-choice')}${button('<span class="play-glyph">✦</span><span><strong>TAP &amp; FUN</strong><small>Tap. Fly. Find your rhythm.</small></span>','play-tap','flight-choice')}</div><div class="home-dock">${button(rocketMark()+'<span>ROCKETS</span>','rockets')}${button('<span class="dock-glyph" aria-hidden="true">🛒</span><span>STORE</span>','store')}${button('<span class="dock-glyph" aria-hidden="true">▥</span><span>LEADERBOARDS</span>','leaderboard')}${button('<span class="dock-glyph" aria-hidden="true">✧</span><span>MISSIONS</span>','missions')}</div></nav><footer class="cinema-footer">A SMALL ROCKET. A LARGER UNIVERSE.</footer>`;
- } else if (name === 'settings') {
-  screen.innerHTML = `${header('SETTINGS')}<div class="page-content">${['sound','music','vibration'].map(k => `<div class="settings-row"><span>${k[0].toUpperCase()+k.slice(1)}</span><button class="toggle ${settings[k]?'on':''}" role="switch" aria-label="${k}" aria-checked="${settings[k]}" data-action="toggle-${k}"><i></i></button></div>`).join('')}<div class="settings-row"><span>Explore controls</span><button class="quiet" data-action="controls">${modeName()} &nbsp; ›</button></div><div class="settings-row"><span>Tap &amp; Fun controls</span><button class="quiet" data-action="tap-help">Tap &nbsp; ›</button></div><p class="small-note">Move. Dodge. Explore.<br>Forward thrust is automatic. You control the flight path.</p><div class="settings-row"><span>Graphics</span><button class="quiet" data-action="graphics">${settings.graphics||'AUTO'} ›</button></div><div class="settings-row"><span>Progress</span><button class="quiet" data-action="reset-confirm">Reset progress ›</button></div><div class="missions"><div class="eyebrow">EXPLORE MISSIONS / EVERY RUN</div><div class="mission-row"><span>Collect 5 stars</span><span>+25 ◉</span></div><div class="mission-row"><span>Make 3 near misses</span><span>+30 ◉</span></div><div class="mission-row"><span>Travel 1,000 meters</span><span>+40 ◉</span></div><p class="small-note">Every 3 stars activates a temporary shield.<br>Collect cyan fuel cells to extend your journey.</p></div></div>`;
- } else if (name === 'controls') {
-  const modes = [['slide','↔','Side Slide','Drag left or right in the lower half. Smooth steering with a little inertia.'],['arrows','〈 〉','Arrow Controls','Hold the left or right HUD control to steer. Release to stabilize.'],['glide','◎','Touch & Hold Glide','Hold anywhere to guide the ship toward your finger. Release to stabilize.']];
-  screen.innerHTML = `${header('CONTROLS','settings')}${modes.map(([id,icon,title,desc])=>`<button class="control-card ${settings.mode===id?'selected':''}" data-action="mode-${id}"><span class="control-symbol">${icon}</span><span><strong>${title}</strong><p>${desc}</p></span><span class="check">${settings.mode===id?'●':'○'}</span></button>`).join('')}<p class="small-note">Keyboard: ← / → or A / D. Escape pauses.<br>Your control choice is saved automatically.</p>`;
- } else if (name === 'rockets') {
-  screen.innerHTML=hangarUI(progress,preview);
- } else if (name === 'leaderboard') {
-  showLeaderboard();
- } else if (name === 'pause') {
-  screen.className = 'overlay-dim open-pause'; screen.innerHTML = `<div class="pause-content"><h2>PAUSED</h2><i class="title-rule"></i>${button('RESUME','resume','primary')}${button('END JOURNEY','end')}${button('EXIT RUN','abandon','exit-run')}</div><div class="pause-tip"><span>TIP</span><i class="title-rule"></i><p>${activeMode==='tap'?'Center your flight through gaps<br>to build a Perfect Pass streak.':'Near misses increase<br>your score multiplier.'}</p></div>`;
- } else if (name === 'crashed' || name === 'summary') {
-  state=name==='crashed'?'crashed':'ended';
-  const crashed = name === 'crashed'; screen.className = 'overlay-dim open-result ' + (crashed?'impact-result':'complete-result');
-  screen.innerHTML = `<div class="crash-title">${crashed?'<h2>CRASHED</h2><p>THE JOURNEY CONTINUES</p>':'<h2 style="color:#dce9ff;font-size:19px">JOURNEY ENDED</h2><p style="color:#98b1d9">KEEP EXPLORING</p>'}</div><div class="summary"><div class="summary-panel"><div class="record-duo"><div><small>DISTANCE</small><strong>${Math.floor(run.distance).toLocaleString()} m</strong></div><div><small>BEST DISTANCE</small><strong>${Math.floor(bestDistance).toLocaleString()} m</strong></div></div>${crashed?`<div class="scores"><div><small>SCORE</small><strong>${run.score}</strong></div><div><small>BEST</small><strong>${best}</strong></div></div>`:`<div class="center"><div class="eyebrow">YOUR SCORE</div><div class="big-score">${run.score}</div><p>BEST SCORE: ${best}</p></div>`}<dl class="stats"><dt>◉ &nbsp; Coins Collected</dt><dd>${run.coins}</dd><dt>✦ &nbsp; Stars Reached</dt><dd>${run.stars}</dd><dt>◇ &nbsp; Near Misses</dt><dd>${run.near}</dd><dt>Mission rewards</dt><dd>+${run.reward} ◉</dd></dl></div><div class="summary-actions">${button(crashed?'↻ &nbsp; TRY AGAIN':'↻ &nbsp; PLAY AGAIN','play',`primary ${crashed?'crash':''}`)}${button('MAIN MENU','home')}${adActions()}${rewardQueue.length?button('NEW REWARDS','view-rewards'):''}<div style="display:flex;justify-content:center;gap:20px">${crashed?'<button class="quiet" data-action="summary">FLIGHT SUMMARY</button>':''}<button class="quiet" data-action="share">↗ SHARE</button></div></div></div>`;
- }
-}
-function modeName() { return ({slide:'Side Slide',arrows:'Arrow Controls',glide:'Touch & Hold Glide'})[settings.mode]; }
-function showTapTutorial() {
-  state='menu';
-  screen.innerHTML=`${header('HOW TO PLAY')}<div class="tap-tutorial"><div class="tutorial-flight"><svg viewBox="0 0 250 105" aria-hidden="true"><path d="M45 75 Q100 -5 180 37 Q205 49 204 78" fill="none" stroke="#abc1e2" stroke-width="1.5" stroke-dasharray="5 6"/><path d="M40 75 L65 63 L55 83 Z" fill="#e9eff9"/><circle cx="54" cy="72" r="3" fill="#6fbadf"/></svg><span>◎</span></div><h2>TAP TO FLY</h2><p>Tap to rise. Release to fall.</p><div class="eyebrow">AVOID OBSTACLES</div><p>Collect coins and stars.<br>Pass a gap to score a point.</p></div>${button('GOT IT','tap-understood','primary')}<p class="small-note center">Keyboard: Space, ↑ or W. Escape pauses.</p>`;
-}
-
-function showLeaderboard() {
- const isTap=boardMode==='tap';let rows=[...(isTap?tapRecords:records)];if(boardClass==='classic')rows=rows.filter(r=>r.rocket==='pioneer'&&!r.assisted);rows.sort((a,b)=>isTap||boardMetric==='score'?b.score-a.score:boardMetric==='coins'?(b.coins||0)-(a.coins||0):b.distance-a.distance);
- screen.innerHTML=`${header(isTap?'TAP & FUN LEADERBOARD':'DEEP SPACE RECORDS')}<div class="mode-tabs"><button class="${isTap?'':'active'}" data-action="board-explore">EXPLORE</button><button class="${isTap?'active':''}" data-action="board-tap">TAP & FUN</button></div><div class="tabs"><button data-action="class-open" class="${boardClass==='open'?'active':''}">OPEN CLASS</button><button data-action="class-classic" class="${boardClass==='classic'?'active':''}">CLASSIC · SCOUT</button></div>${isTap?'':`<div class="mode-tabs"><button data-action="metric-distance" class="${boardMetric==='distance'?'active':''}">DISTANCE</button><button data-action="metric-coins" class="${boardMetric==='coins'?'active':''}">COINS COLLECTED</button></div>`}<div class="eyebrow">PERSONAL FLIGHT LOG</div><table><thead><tr><th>#</th><th>PILOT / CRAFT</th><th>${isTap?'SCORE':boardMetric==='coins'?'COINS':'DISTANCE'}</th></tr></thead><tbody>${rows.slice(0,10).map((r,i)=>`<tr class="${i===0?'you':''}"><td class="rank-${i}">${i+1}</td><td>You <small>${r.rocket?rocketById(r.rocket).name:'LEGACY'}${r.assisted?' · ASSISTED':''}</small></td><td>${!isTap&&boardMetric==='coins'?(r.coins||0).toLocaleString():Math.floor(isTap||boardMetric==='score'?r.score:r.distance).toLocaleString()}${isTap||boardMetric==='score'||boardMetric==='coins'?'':' m'}</td></tr>`).join('')}</tbody></table>${rows.length?'':'<p class="empty">No qualifying flights yet.</p>'}<p class="small-note">On-device records. Classic requires Scout and an unassisted run. Older records with unknown craft stay in Open.</p>`;
-}
-
-function startTap() {
- tapFlight.id=`${Date.now()}-${++runSequence}`;
-  resetInput(); particles.clear(); tapFlight.reset(selected); tapBestAnnounced=false;
-  state='tapready';page='tap-flight';screen.innerHTML='';screen.className='';
-  $('hud').hidden=true;$('arrows').hidden=true;$('tapHud').hidden=false;
-  $('toast').textContent='';$('toast').classList.remove('visible');
-  $('steerHint').textContent='TAP TO FLY';
-  updateTapHud(); updateItemHud();
-}
-
-function tapThrust() {
-  if (!tapFlight.tap()) return;
-  unlockAudio();state='tap';$('steerHint').textContent='';
-  tone(160,.055,'sine',.012);
-  if(settings.vibration&&navigator.vibrate)navigator.vibrate(7);
-}
-
-function updateTapHud() {
-  $('tapScore').textContent=tapFlight.score;
-  $('tapBest').textContent=`BEST ${Math.max(tapBest,tapFlight.score)}`;
-  $('tapCoins').textContent=tapFlight.coins;updateFlightReadout();
-}
-
-function finishTap() {
- if(trial||tapFlight.saved)return;tapFlight.saved=true;
- wallet+=tapFlight.coins;tapBest=Math.max(tapBest,tapFlight.score);
- tapRecords.push({score:tapFlight.score,coins:tapFlight.coins,stars:tapFlight.stars,perfects:tapFlight.perfects,date:Date.now(),rocket:tapFlight.systems.id,assisted:tapFlight.assisted});tapRecords.sort((a,b)=>b.score-a.score);tapRecords=tapRecords.slice(0,100);
- progress.metric('tapStars',tapFlight.stars);save('spacehullTapTotalStars',progress.data.totals.tapStars);persistProfile();rewardQueue.push(...progress.advance('tap',tapBest));pullProfile();persistProfile();analytics.track('run_ended',{mode:'tap',score:tapFlight.score,perfects:tapFlight.perfects});
-}
-
-function updateTap(dt) {
-  clock+=dt;tickToast(dt);updateAbility(tapFlight.systems);
-  if(state!=='tapover')tapFlight.step(dt,event=>{
-    if(event==='score') { analytics.track('tap_score_reached',{score:tapFlight.score});tone(510,.07,'sine',.018); if(tapFlight.score>tapBest&&!tapBestAnnounced){tapBestAnnounced=true;tone(980,.2,'sine',.018);} }
-    if(event==='perfect'){notify(`PERFECT ×${tapFlight.perfectStreak}`);progress.metric('perfectStreak',tapFlight.perfectStreak,true);analytics.track('perfect_pass',{streak:tapFlight.perfectStreak});tone(1050,.1);}
-    if(event==='skim'){notify('SKIM +1');tone(700,.08);}
-    if(event==='shield'){notify('SHIELD ONLINE');tone(960,.16);}
-    if(event==='shield-hit'){notify('SHIELD CLEARED THE WAY');tone(320,.1);}
-    if(event==='mine'){tone(90,.25,'sawtooth');}
-    if(event==='upgrade')show('upgrade');
-    if(event==='damage'){notify('ARMOUR BROKEN');tone(130,.15,'triangle');}
-    if(event==='coin')tone(780,.07,'sine',.025);
-    if(event==='star')tone(1160,.15,'sine',.025);
-    if(event==='crash'){
-      if(progress.itemCount('key')>0){
-        progress.useItem('key');tapFlight.status='playing';tapFlight.systems.shield=4;
-        notify('🔑 REVIVED BY KEY!');tone(1100,.3);updateItemHud();return;
-      }
-      analytics.track('crash_reason',{mode:'tap',reason:'impact'});state='tapcrashing';tone(80,.3,'triangle',.06);if(settings.vibration&&navigator.vibrate)navigator.vibrate(40);finishTap();
+// ====================================
+// CONFIGURATION
+// ====================================
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    parent: 'phaser-game',
+    backgroundColor: '#0a0a1a',
+    scale: {
+        mode: Phaser.Scale.RESIZE, // Resizes game to fit window
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 600 },
+            debug: false
+        }
+    },
+    scene: {
+        preload: preload,
+        create: create,
+        update: update
     }
-    if(event==='over'){state='tapover';show('tap-result');}
-  });
-  updateTapHud();
-  if(humGain&&audio)humGain.gain.setTargetAtTime(settings.music?.014:0,audio.currentTime,.3);
+};
+
+// ====================================
+// GAME CONSTANTS
+// ====================================
+const GAME = {
+    // Physics
+    THRUST_POWER: -350,
+    MAX_VELOCITY: 400,
+
+    // Obstacles
+    OBSTACLE_SPEED: 200,        // Slower start
+    OBSTACLE_SPAWN_RATE: 2500,  // Wider gaps
+    GAP_SIZE: 170,              // Slightly wider gaps
+    MIN_GAP_Y: 100,
+    MAX_GAP_Y: 400,
+
+    // Difficulty
+    SPEED_INCREASE: 5,          // Slower ramping initially
+    SPAWN_DECREASE: 30,
+    MIN_SPAWN_RATE: 900,
+
+    // Scoring
+    POINTS_PER_PASS: 1,
+    NEAR_MISS_BONUS: 5,
+    NEAR_MISS_DISTANCE: 30,
+
+    // Powerups
+    STARS_FOR_SHIELD: 3,
+    SHIELD_DURATION: 5000, // 5 seconds
+    SLOWMO_DURATION: 3500,
+    MAGNET_DURATION: 8000,
+    MAGNET_RADIUS: 260,
+
+    // Combo
+    COMBO_TIMEOUT: 3000,           // ms before combo resets
+    NEAR_MISS_THRESHOLD: 55,       // px vertical distance for near miss
+    COMBO_TIERS: [
+        { count: 3,  mult: 2, label: 'x2 COMBO',       color: '#00ffea' },
+        { count: 6,  mult: 3, label: 'x3 FIRE',        color: '#ff9e1f' },
+        { count: 10, mult: 5, label: 'x5 INFERNO',     color: '#ff3366' },
+        { count: 15, mult: 8, label: 'x8 GODMODE',     color: '#ff00ff' }
+    ]
+};
+
+// Persistent unlock thresholds for rocket skins
+const SKINS = [
+    { id: 'classic',  name: 'Classic',    score: 0,   accent: 0xff3366 },
+    { id: 'emerald',  name: 'Emerald',    score: 25,  accent: 0x2ecc71 },
+    { id: 'phoenix',  name: 'Phoenix',    score: 75,  accent: 0xff6b00 },
+    { id: 'void',     name: 'Void',       score: 150, accent: 0x8b5cf6 },
+    { id: 'celestial',name: 'Celestial',  score: 300, accent: 0xffd700 }
+];
+
+const BADGES = [
+    { score: 10, name: "Rookie Pilot", icon: "🥉" },
+    { score: 25, name: "Space Ranger", icon: "🥈" },
+    { score: 50, name: "Galaxy Commander", icon: "🥇" },
+    { score: 100, name: "Cosmic Legend", icon: "👑" },
+    { score: 200, name: "Void Walker", icon: "🌌" },
+    { score: 500, name: "Star Lord", icon: "✨" },
+    { score: 1000, name: "Universal Entity", icon: "♾️" }
+];
+
+// ====================================
+// ZONE DEFINITIONS
+// ====================================
+const ZONES = [
+    {
+        minScore: 0, name: 'DEEP SPACE',
+        bgTop: 0x0a0a1a, bgBot: 0x1a0a2e, nebulaColor: 0x6b46c1,
+        asteroidRate: 800, ufoRate: 8000, bhMin: 3000, bhMax: 5000,
+        ambientPitch: 38, ambientMid: 110, label: '🌌 DEEP SPACE'
+    },
+    {
+        minScore: 50, name: 'ASTEROID BELT',
+        bgTop: 0x1a0808, bgBot: 0x2e0f0f, nebulaColor: 0x8b2020,
+        asteroidRate: 450, ufoRate: 6000, bhMin: 2000, bhMax: 4000,
+        ambientPitch: 45, ambientMid: 90, label: '☄️ ASTEROID BELT'
+    },
+    {
+        minScore: 100, name: 'NEBULA CLOUD',
+        bgTop: 0x0d0a2e, bgBot: 0x2a0a3e, nebulaColor: 0xec4899,
+        asteroidRate: 550, ufoRate: 3500, bhMin: 2000, bhMax: 3500,
+        ambientPitch: 34, ambientMid: 130, label: '💜 NEBULA CLOUD'
+    },
+    {
+        minScore: 150, name: 'SOLAR STORM',
+        bgTop: 0x1a0d00, bgBot: 0x2e1800, nebulaColor: 0xff6b00,
+        asteroidRate: 380, ufoRate: 3000, bhMin: 1500, bhMax: 2800,
+        ambientPitch: 55, ambientMid: 160, label: '🔥 SOLAR STORM'
+    },
+    {
+        minScore: 200, name: 'THE VOID',
+        bgTop: 0x000000, bgBot: 0x060210, nebulaColor: 0x1a0a2e,
+        asteroidRate: 300, ufoRate: 2000, bhMin: 1000, bhMax: 2000,
+        ambientPitch: 28, ambientMid: 80, label: '🕳️ THE VOID'
+    }
+];
+
+// ====================================
+// COLORS (Professional Space Theme)
+// ====================================
+const COLORS = {
+    ROCKET_BODY: 0xffffff,
+    ROCKET_NOSE: 0xff3366,
+    ROCKET_FINS: 0x00aaff,
+    FLAME_INNER: 0xffff00,
+    FLAME_OUTER: 0xff6600,
+    OBSTACLE: 0x4a5568,
+    OBSTACLE_GLOW: 0x00ffff,
+    STAR: 0xffffff,
+    NEBULA: 0x6b46c1
+};
+
+// ====================================
+// AUDIO ENGINE (Web Audio API - No Files)
+// ====================================
+const AudioEngine = {
+    ctx: null,
+    muted: false,
+
+    init() {
+        this.muted = localStorage.getItem('wilifunkMuted') === 'true';
+        // AudioContext created on first user gesture to satisfy browser policy
+    },
+
+    _getCtx() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+    },
+
+    toggleMute() {
+        this.muted = !this.muted;
+        localStorage.setItem('wilifunkMuted', this.muted);
+        return this.muted;
+    },
+
+    // Utility: play a single tone
+    _tone(freq, type, gainVal, duration, when = 0, fadeOut = true) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime + when;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(gainVal, now);
+        if (fadeOut) gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    },
+
+    // Utility: frequency sweep
+    _sweep(freqStart, freqEnd, type, gainVal, duration, when = 0) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime + when;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqStart, now);
+        osc.frequency.exponentialRampToValueAtTime(freqEnd, now + duration);
+        gain.gain.setValueAtTime(gainVal, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.start(now);
+        osc.stop(now + duration);
+    },
+
+    // 1. Thrust — punchy rocket burst (3 layers)
+    thrust() {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // Layer 1: Deep low thump (kick-like body)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1); gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(160, now);
+        osc1.frequency.exponentialRampToValueAtTime(55, now + 0.12);
+        gain1.gain.setValueAtTime(0.5, now);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        osc1.start(now); osc1.stop(now + 0.12);
+
+        // Layer 2: Mid whoosh sweep (thrust feel)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2); gain2.connect(ctx.destination);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(90, now);
+        osc2.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+        gain2.gain.setValueAtTime(0.18, now);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        osc2.start(now); osc2.stop(now + 0.1);
+
+        // Layer 3: High fizz (air burst sparkle)
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.connect(gain3); gain3.connect(ctx.destination);
+        osc3.type = 'triangle';
+        osc3.frequency.setValueAtTime(800, now + 0.02);
+        osc3.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+        gain3.gain.setValueAtTime(0.08, now + 0.02);
+        gain3.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        osc3.start(now + 0.02); osc3.stop(now + 0.1);
+    },
+
+    // 2. Star collect — bright ascending chime
+    starCollect() {
+        [523, 659, 784].forEach((f, i) => this._tone(f, 'sine', 0.15, 0.12, i * 0.07));
+    },
+
+    // 3. Shield activate — rising power-up fanfare
+    shieldActivate() {
+        this._sweep(300, 900, 'sine', 0.2, 0.3);
+        this._sweep(600, 1200, 'triangle', 0.1, 0.25, 0.1);
+        [1047, 1319, 1568].forEach((f, i) => this._tone(f, 'sine', 0.12, 0.15, 0.3 + i * 0.08));
+    },
+
+    // 4. Shield absorb hit — thuddy crunch then recovery ping
+    shieldHit() {
+        this._sweep(400, 80, 'sawtooth', 0.25, 0.15);
+        this._tone(880, 'sine', 0.12, 0.1, 0.2);
+    },
+
+    // 5. Explosion — noise burst (simulated with rapid random sawtooth)
+    explosion() {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const bufferSize = ctx.sampleRate * 0.6;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(1.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
+        source.start();
+        // Low rumble
+        this._sweep(80, 20, 'sine', 0.3, 0.5);
+    },
+
+    // 6. Badge unlock — triumphant 3-note fanfare
+    badgeUnlock() {
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((f, i) => this._tone(f, 'triangle', 0.18, 0.2, i * 0.12));
+        this._tone(1047, 'sine', 0.1, 0.4, 0.5);
+    },
+
+    // 7. Black hole proximity rumble — deep pulsing tone
+    blackHoleRumble(intensity) {
+        if (this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.frequency.value = 4;
+        lfoGain.gain.value = 15;
+        osc.frequency.value = 40 + intensity * 10;
+        osc.type = 'sawtooth';
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(intensity * 0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+        lfo.start(now); osc.start(now);
+        lfo.stop(now + 0.3); osc.stop(now + 0.3);
+    },
+
+    // 8. Meteor shower warning — descending siren
+    meteorWarning() {
+        for (let i = 0; i < 3; i++) {
+            this._sweep(1200, 600, 'sawtooth', 0.15, 0.4, i * 0.45);
+        }
+    },
+
+    // 9. Near-miss whoosh
+    nearMiss() {
+        this._sweep(600, 150, 'sine', 0.18, 0.15);
+    },
+
+    // ==== CONTINUOUS SOUNDS ====
+    // Nodes kept alive so we can stop them
+    _ambientNodes: null,
+    _engineNodes: null,
+
+    // 10. Calm space wind ambient (white noise + lowpass + slow LFO breathing)
+    startAmbient() {
+        if (this.muted || this._ambientNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // White noise buffer (2 seconds, looped)
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        // Lowpass filter — keeps only low, airy frequencies → removes harshness
+        const windFilter = ctx.createBiquadFilter();
+        windFilter.type = 'lowpass';
+        windFilter.frequency.value = 380;   // soft, muffled air
+        windFilter.Q.value = 0.8;
+
+        // Gain — fades in gently
+        const windGain = ctx.createGain();
+        windGain.gain.setValueAtTime(0, now);
+        windGain.gain.linearRampToValueAtTime(0.12, now + 3); // calm fade-in
+
+        // Very slow LFO — makes the wind "breathe" in and out (gusts)
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.1;   // one full breath every ~10 seconds
+        lfoGain.gain.value = 120;    // sweeps filter ±120 Hz
+        lfo.connect(lfoGain);
+        lfoGain.connect(windFilter.frequency);
+
+        noise.connect(windFilter);
+        windFilter.connect(windGain);
+        windGain.connect(ctx.destination);
+
+        noise.start(now);
+        lfo.start(now);
+
+        this._ambientNodes = { noise, windFilter, windGain, lfo };
+    },
+
+    stopAmbient() {
+        if (!this._ambientNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._ambientNodes;
+        n.windGain.gain.setValueAtTime(n.windGain.gain.value, now);
+        n.windGain.gain.linearRampToValueAtTime(0, now + 1.5);
+        // Stop nodes after fade
+        setTimeout(() => {
+            try { n.noise.stop(); } catch (e) { }
+            try { n.lfo.stop(); } catch (e) { }
+        }, 1600);
+        this._ambientNodes = null;
+    },
+
+    // 11. Rocket engine hum (continuous while playing)
+    startEngineHum() {
+        if (this.muted || this._engineNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+
+        // Core engine tone
+        const osc = ctx.createOscillator();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.value = 85;        // deep engine rumble pitch
+        filter.type = 'lowpass';
+        filter.frequency.value = 320;    // muffle high harmonics
+        filter.Q.value = 2;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.14, now + 1.2);  // gentle ramp-up
+        osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+        osc.start(now);
+
+        // Sub pulse (engine beat/throb)
+        const oscSub = ctx.createOscillator();
+        const lfoSub = ctx.createOscillator();
+        const lfoGainSub = ctx.createGain();
+        const gainSub = ctx.createGain();
+        oscSub.type = 'sine';
+        oscSub.frequency.value = 42;
+        lfoSub.type = 'sine';
+        lfoSub.frequency.value = 7;     // engine throb rate
+        lfoGainSub.gain.value = 0.06;
+        lfoSub.connect(lfoGainSub);
+        lfoGainSub.connect(gainSub.gain);
+        gainSub.gain.setValueAtTime(0, now);
+        gainSub.gain.linearRampToValueAtTime(0.1, now + 1.2);
+        oscSub.connect(gainSub); gainSub.connect(ctx.destination);
+        oscSub.start(now); lfoSub.start(now);
+
+        this._engineNodes = { osc, filter, gain, oscSub, gainSub, lfoSub };
+    },
+
+    // Briefly rev the engine on thrust
+    engineRev() {
+        if (!this._engineNodes || this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._engineNodes;
+        // Pitch kick up then settle
+        n.osc.frequency.cancelScheduledValues(now);
+        n.osc.frequency.setValueAtTime(n.osc.frequency.value, now);
+        n.osc.frequency.linearRampToValueAtTime(160, now + 0.06);
+        n.osc.frequency.linearRampToValueAtTime(85, now + 0.25);
+        // Volume swell
+        n.gain.gain.setValueAtTime(n.gain.gain.value, now);
+        n.gain.gain.linearRampToValueAtTime(0.28, now + 0.06);
+        n.gain.gain.linearRampToValueAtTime(0.14, now + 0.3);
+    },
+
+    stopEngineHum() {
+        if (!this._engineNodes) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._engineNodes;
+        n.gain.gain.setValueAtTime(n.gain.gain.value, now);
+        n.gain.gain.linearRampToValueAtTime(0, now + 1.0);
+        n.gainSub.gain.setValueAtTime(n.gainSub.gain.value, now);
+        n.gainSub.gain.linearRampToValueAtTime(0, now + 1.0);
+        [n.osc, n.oscSub, n.lfoSub].forEach(o => o.stop(now + 1.1));
+        this._engineNodes = null;
+    },
+
+    // 12. Coin collect — short bright pluck
+    coinCollect() {
+        this._tone(988, 'triangle', 0.14, 0.08);
+        this._tone(1318, 'sine', 0.10, 0.14, 0.05);
+    },
+
+    // 13. Combo tick — ascending pip, brighter by tier
+    comboTick(tier) {
+        const base = 440 + tier * 220;
+        this._tone(base, 'triangle', 0.13, 0.08);
+        this._tone(base * 1.5, 'sine', 0.08, 0.12, 0.04);
+    },
+
+    // 14. Slow-mo activate — pitched-down time warp
+    slowMoActivate() {
+        this._sweep(880, 180, 'sine', 0.22, 0.5);
+        this._sweep(440, 120, 'triangle', 0.15, 0.55, 0.05);
+    },
+
+    slowMoEnd() {
+        this._sweep(180, 880, 'sine', 0.18, 0.35);
+    },
+
+    // 15. Magnet activate — electric hum
+    magnetActivate() {
+        this._sweep(220, 660, 'square', 0.12, 0.25);
+        this._tone(880, 'triangle', 0.10, 0.2, 0.1);
+    },
+
+    // 16. Soft UI ping (tutorial / button)
+    uiPing() {
+        this._tone(880, 'sine', 0.10, 0.1);
+    },
+
+    // Shift ambient wind character per zone (gentler / more intense filter sweep)
+    shiftAmbient(zoneIndex) {
+        if (!this._ambientNodes || this.muted) return;
+        const ctx = this._getCtx();
+        const now = ctx.currentTime;
+        const n = this._ambientNodes;
+        // Zone-based filter cutoff targets (higher = breezier, lower = muffled/tense)
+        const filterTargets = [380, 320, 420, 280, 200];
+        const gainTargets = [0.12, 0.14, 0.10, 0.16, 0.08];
+        const lfoSpeeds = [0.1, 0.12, 0.08, 0.18, 0.06];
+        const target = filterTargets[zoneIndex] ?? 380;
+        const gainT = gainTargets[zoneIndex] ?? 0.12;
+        const lfoSpd = lfoSpeeds[zoneIndex] ?? 0.1;
+        n.windFilter.frequency.setValueAtTime(n.windFilter.frequency.value, now);
+        n.windFilter.frequency.linearRampToValueAtTime(target, now + 2.5);
+        n.windGain.gain.setValueAtTime(n.windGain.gain.value, now);
+        n.windGain.gain.linearRampToValueAtTime(gainT, now + 2.5);
+        n.lfo.frequency.setValueAtTime(n.lfo.frequency.value, now);
+        n.lfo.frequency.linearRampToValueAtTime(lfoSpd, now + 2.5);
+    }
+};
+
+// Initialize audio engine (sets mute state from localStorage)
+AudioEngine.init();
+
+// GAME STATE
+// ====================================
+let gameState = {
+    rocket: null,
+    obstacles: null,
+    flyingObstacles: null,
+    starItems: null,
+    stars: [],
+    isGameOver: false,
+    isPlaying: false,
+    score: 0,
+    highScore: 0,
+    obstacleSpeed: GAME.OBSTACLE_SPEED,
+    spawnRate: GAME.OBSTACLE_SPAWN_RATE,
+    obstacleTimer: null,
+    asteroidTimer: null,
+    starTimer: null,
+    difficultyTimer: null,
+    // Powerups
+    collectedStars: 0,
+    hasShield: false,
+    shieldEndTime: 0,
+    isInvincible: false,
+    // Persistence
+    unlockedBadges: [],
+    blackHoles: null,
+    blackHoleTimer: null,
+    meteorTimer: null,
+    lastSpawnX: 0,
+    // Zones
+    currentZone: 0,
+
+    // Combo
+    combo: 0,
+    maxCombo: 0,
+    comboMult: 1,
+    comboTier: -1,
+    lastScoreTime: 0,
+
+    // Slowmo + Magnet power-ups
+    crystals: null,
+    coins: null,
+    magnets: null,
+    slowMoActive: false,
+    slowMoEndTime: 0,
+    timeScaleTarget: 1,
+    timeScaleCurrent: 1,
+    magnetActive: false,
+    magnetEndTime: 0,
+
+    // Currency + meta stats
+    sessionCoins: 0,
+    totalCoins: 0,
+    gamesPlayed: 0,
+    nearMisses: 0,
+    sessionStartTime: 0,
+    sessionDurationMs: 0,
+
+    // Visuals
+    shootingStars: [],
+    isPaused: false,
+
+    // Skin
+    currentSkin: 'classic',
+    unlockedSkins: ['classic']
+};
+
+let sceneRef;
+let scoreText;
+let highScoreText;
+let starText;
+let badgeText;
+let meteorText;
+let shieldEffect;
+let bgGraphics;      // Zone background — redrawn on zone change
+let zoneBannerText;  // Zone transition banner
+
+// Enhanced HUD
+let comboText;
+let comboBarBg;
+let comboBarFill;
+let shieldBarBg;
+let shieldBarFill;
+let slowMoBarBg;
+let slowMoBarFill;
+let magnetBarBg;
+let magnetBarFill;
+let zoneProgressBg;
+let zoneProgressFill;
+let zoneProgressLabel;
+let coinText;
+let magnetRing;       // visible aura when magnet active
+
+// ====================================
+// PRELOAD - Create Graphics
+// ====================================
+function preload() {
+    sceneRef = this;
+
+    // Load high score, badges & intensity
+    gameState.highScore = parseInt(localStorage.getItem('spaceRocketHighScore') || '0');
+    gameState.unlockedBadges = JSON.parse(localStorage.getItem('spaceRocketBadges') || '[]');
+    gameState.intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
+
+    // Persistent meta
+    gameState.totalCoins = parseInt(localStorage.getItem('spaceRocketCoins') || '0');
+    gameState.gamesPlayed = parseInt(localStorage.getItem('spaceRocketGames') || '0');
+    gameState.maxCombo = parseInt(localStorage.getItem('spaceRocketMaxCombo') || '0');
+    gameState.totalTimeMs = parseInt(localStorage.getItem('spaceRocketTotalTime') || '0');
+    try {
+        gameState.unlockedSkins = JSON.parse(localStorage.getItem('spaceRocketSkins') || '["classic"]');
+    } catch (e) { gameState.unlockedSkins = ['classic']; }
+    gameState.currentSkin = localStorage.getItem('spaceRocketActiveSkin') || 'classic';
+
+    updateHomeBadges();
+    if (typeof updateHomeStats === 'function') updateHomeStats();
+
+    // Create rocket sprites (one texture per skin)
+    SKINS.forEach(s => createRocketTexture(this, s.id, s.accent));
+
+    // Create flame texture
+    createFlameTexture(this);
+
+    // Create obstacle textures
+    createMountainTexture(this);
+    createPlanetTexture(this);
+    createAsteroidTexture(this);
+    createUFOTexture(this);
+    createStarItemTexture(this);
+    createBlackHoleTexture(this);
+    createCoinTexture(this);
+    createCrystalTexture(this);
+    createMagnetTexture(this);
 }
 
-function endJourney(home=false) {
- if(trial){endTrial();return;}
-  finish();
-  if(activeMode==='tap'){tapFlight.status='over';tapFlight.crashTime=.85;}
-  if(home)show('home');
-  else {state=activeMode==='tap'?'tapover':'ended';show(activeMode==='tap'?'tap-summary':'summary');}
+function createRocketTexture(scene, skinId = 'classic', accent = 0xff3366) {
+    const gfx = scene.add.graphics();
+    const textureKey = skinId === 'classic' ? 'rocket' : `rocket_${skinId}`;
+
+    // -- Dimensions: 64x50 --
+
+    // 1. Rear Thrusters
+    gfx.fillStyle(0x2d3436, 1);
+    gfx.fillRoundedRect(0, 10, 15, 10, 2);
+    gfx.fillRoundedRect(0, 30, 15, 10, 2);
+
+    // Engine Glow Cores — tinted by accent
+    gfx.fillStyle(accent, 0.85);
+    gfx.fillCircle(2, 15, 3);
+    gfx.fillCircle(2, 35, 3);
+
+    // 2. Wings
+    gfx.fillStyle(0xa4b0be, 1);
+    gfx.beginPath();
+    gfx.moveTo(20, 25);
+    gfx.lineTo(5, 5);
+    gfx.lineTo(40, 25);
+    gfx.lineTo(5, 45);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Wing Accents — accent-tinted trim
+    gfx.lineStyle(2, accent, 1);
+    gfx.beginPath();
+    gfx.moveTo(10, 10);
+    gfx.lineTo(30, 25);
+    gfx.lineTo(10, 40);
+    gfx.strokePath();
+
+    // 3. Main Fuselage
+    gfx.fillStyle(0xffffff, 1);
+    gfx.beginPath();
+    gfx.moveTo(10, 20);
+    gfx.lineTo(60, 25);
+    gfx.lineTo(10, 30);
+    gfx.lineTo(8, 25);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // 4. Cockpit — tinted with accent darker variant
+    gfx.fillStyle(0x0984e3, 1);
+    gfx.fillEllipse(35, 25, 10, 4);
+    gfx.fillStyle(0x74b9ff, 0.9);
+    gfx.fillEllipse(36, 24, 4, 1);
+
+    // 5. Nose accent stripe
+    gfx.fillStyle(accent, 1);
+    gfx.fillTriangle(50, 23, 60, 25, 50, 27);
+
+    // 6. Vertical Stabilizer
+    gfx.fillStyle(0x747d8c, 1);
+    gfx.beginPath();
+    gfx.moveTo(15, 25);
+    gfx.lineTo(5, 15);
+    gfx.lineTo(25, 25);
+    gfx.closePath();
+    gfx.fillPath();
+
+    gfx.generateTexture(textureKey, 64, 50);
+    gfx.destroy();
 }
 
-function showTapResult(crashed) {
-  screen.className='overlay-dim tap-result open-result '+(crashed?'impact-result':'complete-result');
-  screen.innerHTML=`<div class="crash-title"><h2 ${crashed?'':'style="color:#e3edff;font-size:21px"'}>${crashed?'CRASHED':'RUN COMPLETE'}</h2><p>${crashed?'KEEP TRYING':'NICE FLIGHT!'}</p></div><div class="summary"><div class="summary-panel"><div class="scores"><div><small>SCORE</small><strong>${tapFlight.score}</strong></div><div><small>BEST</small><strong>${tapBest}</strong></div></div><dl class="stats"><dt>◉ &nbsp; Coins Collected</dt><dd>${tapFlight.coins}</dd><dt>✦ &nbsp; Stars Collected</dt><dd>${tapFlight.stars}</dd><dt>◇ &nbsp; Obstacles Passed</dt><dd>${tapFlight.obstaclesPassed}</dd><dt>◎ &nbsp; Perfect Passes</dt><dd>${tapFlight.perfects}</dd></dl></div><div class="summary-actions">${button(crashed?'↻ &nbsp; TRY AGAIN':'↻ &nbsp; PLAY AGAIN','play','primary')}${button('MAIN MENU','home')}${adActions()}${rewardQueue.length?button('NEW REWARDS','view-rewards'):''}<div class="result-links">${crashed?'<button class="quiet" data-action="tap-summary">FLIGHT SUMMARY</button>':''}<button class="quiet" data-action="share">↗ SHARE</button></div></div></div>`;
-}
-screen.addEventListener('click', async e => {
- const b = e.target.closest('[data-action]'); if (!b) return; unlockAudio(); tone(380,.045); const a=b.dataset.action;
- if(handleMetaAction(a))return;
- if (a==='play') start();
- else if (a==='play-explore') { activeMode='explore'; boardMode='explore';analytics.track('mode_selected',{mode:activeMode});start(); }
- else if (a==='play-tap') { activeMode='tap'; boardMode='tap';analytics.track('mode_selected',{mode:activeMode});if (!read('spacehullTapTutorialSeen',false)) show('tap-tutorial'); else start(); }
- else if (a==='tap-help') show('tap-tutorial');
- else if (a==='tap-understood') { save('spacehullTapTutorialSeen',true); activeMode='tap'; boardMode='tap'; start(); }
- else if (a==='board-explore' || a==='board-tap') { boardMode=a.slice(6); show('leaderboard'); }
- else if (a==='tap-summary') show('tap-summary');
+function createFlameTexture(scene) {
+    const gfx = scene.add.graphics();
 
- else if (a.startsWith('toggle-')) { const k=a.slice(7); settings[k]=!settings[k]; save('spacerootSettings',settings);persistProfile();show('settings'); }
- else if (a.startsWith('mode-')) { settings.mode=a.slice(5); input.mode=settings.mode; save('spacerootSettings',settings);persistProfile();show('controls'); }
- else if (a.startsWith('tab-')) { tab=a.slice(4); show('leaderboard'); }
- else if (a==='previous' || a==='next') { preview=(preview+(a==='next'?1:rockets.length-1))%rockets.length; show('rockets'); }
- else if (a==='equip') { const r=rockets[preview];if(!unlocked.includes(r.id)){if(!progress.purchase(r.id)){notify('REQUIREMENTS NOT YET MET');return;}analytics.track('rocket_purchased',{id:r.id});pullProfile();}selected=r.id;persistProfile();analytics.track('rocket_equipped',{id:r.id});show('rockets');}
- else if (a==='resume') resume();
- else if (a==='end' || a==='abandon') endJourney(a==='abandon');
- else if (a==='share') { const text=activeMode==='tap'?`SPACEHULL · Tap & Fun · ${tapFlight.score} obstacles passed · ${tapFlight.coins} coins.`:`SPACEHULL · Explore · ${run.score} points · ${Math.floor(run.distance)} m into deep space.`;try{if(navigator.share)await navigator.share({title:'SPACEHULL',text});else{await navigator.clipboard.writeText(text);notify('FLIGHT RECORD COPIED');}}catch{notify('SHARING UNAVAILABLE');} }
- else show(a);
-});
-function start() {
- analytics.track('run_started',{mode:activeMode,rocket:selected,trial:Boolean(trial)});
- if (activeMode==='tap') { startTap(); return; }
- $('tapHud').hidden=true;
- resetInput(); obstacles.clear();pickups.clear();particles.clear();ship=pilot();zone=0;systems=createSystems(selected);exp=expedition();spawnClock=.4;pickupClock=1.3;
- run={id:`${Date.now()}-${++runSequence}`,rocket:selected,assisted:false,discoveries:0,combo:1,comboTime:0,score:0,coins:0,stars:0,near:0,distance:0,fuel:100,reward:0,shield:0,speed:REGIONS[0].speed,missions:[false,false,false],saved:false};
- if(trial){run.shield=2;if(systems.craft.ability==='OVERDRIVE')systems.energy=100;}run.checkpoint=0;state='launch';page='flight';launchTime=0;screen.className='launching';tone(100,.7,'sine',.07);
-}
-function begin() {state='playing';hudClock=1;updateFlightReadout();updateItemHud();screen.innerHTML='';screen.className='';$('hud').hidden=false;$('arrows').hidden=settings.mode!=='arrows';$('steerHint').textContent=settings.mode==='slide'?'↔  SLIDE TO STEER':settings.mode==='glide'?'TOUCH & HOLD TO GUIDE':'';}
-function pause() {if(!['playing','tap','tapready'].includes(state))return;pausedFrom=state;state='paused';if(humGain&&audio)humGain.gain.setTargetAtTime(0,audio.currentTime,.1);show('pause');}
-function resume() {state=pausedFrom;page='flight';screen.innerHTML='';screen.className='';$('hud').hidden=activeMode==='tap';$('tapHud').hidden=activeMode!=='tap';$('arrows').hidden=activeMode==='tap'||settings.mode!=='arrows';resetInput();updateFlightReadout();}
-$('pause').onclick=pause; $('tapPause').onclick=pause;
-document.addEventListener('visibilitychange',()=>{if(document.hidden){pause();resetInput();if(audio)audio.suspend().catch(()=>{});}else if(audio)audio.resume().catch(()=>{});});
-window.addEventListener('blur',()=>{pause();resetInput();});
-window.addEventListener('keydown',e=>{if(activeMode==='tap'&&['tap','tapready'].includes(state)&&!e.target.closest('button')&&[' ','ArrowUp','w','W'].includes(e.key)){e.preventDefault();if(!e.repeat)tapThrust();return;}if(['ArrowLeft','ArrowRight','a','d','A','D'].includes(e.key)){if(state!=='playing')return;e.preventDefault();keys.add(e.key.toLowerCase());input.axis=(keys.has('arrowright')||keys.has('d')?1:0)-(keys.has('arrowleft')||keys.has('a')?1:0);}if(e.key==='Escape'){if(['playing','tap','tapready'].includes(state))pause();else if(state==='paused')resume();}});
-window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());input.axis=(keys.has('arrowright')||keys.has('d')?1:0)-(keys.has('arrowleft')||keys.has('a')?1:0);});
-let dragX=0,dragShip=0;
-app.addEventListener('pointerdown',e=>{
- if(activeMode==='tap'&&['tap','tapready'].includes(state)){
-  if(!e.target.closest('button')){
-   e.preventDefault();
-   triggerDoubleTapConsumable();
-   tapThrust();
-  }
-  return;
- }
- if(state==='playing'&&!e.target.closest('button')){
-  triggerDoubleTapConsumable();
- }
- if(state!=='playing'||pointerId!==null)return;
- const arrow=e.target.closest('[data-direction]');if(e.target.closest('button')&&!arrow)return;
- const rect=canvas.getBoundingClientRect(),x=(e.clientX-rect.left)*W/rect.width,y=(e.clientY-rect.top)*H/rect.height;
- if(settings.mode==='arrows'&&!arrow)return;
- if(settings.mode==='slide'&&y<H*.43)return;
- pointerId=e.pointerId;app.setPointerCapture(e.pointerId);dragX=x;dragShip=ship.x;input.active=true;input.target=settings.mode==='slide'?ship.x:x;
- if(arrow)input.axis=Number(arrow.dataset.direction);
-});
-app.addEventListener('pointermove',e=>{if(e.pointerId!==pointerId)return;const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width;input.target=clamp(settings.mode==='slide'?dragShip+x-dragX:x,22,W-22);});
-for(const type of ['pointerup','pointercancel','lostpointercapture'])app.addEventListener(type,e=>{if(e.pointerId===pointerId)resetInput();});
-function finish(){
- if(trial)return;
- if(activeMode==='tap'){finishTap();return;}
- if(!run||run.saved)return;run.saved=true;best=Math.max(best,run.score);bestDistance=Math.max(bestDistance,run.distance);wallet+=Math.max(0,run.coins+run.reward-(run.paidCoins||0));run.paidCoins=run.coins+run.reward;
- records=records.filter(r=>r.id!==run.id);records.push({id:run.id,distance:Math.floor(run.distance),score:run.score,coins:run.coins,date:Date.now(),rocket:run.rocket,assisted:run.assisted});records.sort((a,b)=>b.distance-a.distance);records=records.slice(0,100);
- for(const [target,badge] of EXPLORE_BADGES)if(best>=target&&!progress.data.achievements.includes(badge))progress.data.achievements.push(badge);
- persistProfile();rewardQueue.push(...progress.advance('explore',bestDistance));pullProfile();persistProfile();analytics.track('run_ended',{mode:'explore',distance:Math.floor(run.distance),score:run.score});
-}
-function crash(){
- if(state!=='playing')return;
- if(trial){systems=createSystems(selected);ship=pilot();run.shield=1;notify('TEST FLIGHT · HULL RESTORED');return;}
- if(progress.itemCount('key')>0){
-  progress.useItem('key');
-  run.shield=4;ship=pilot();obstacles.clear();pickups.clear();particles.clear();
-  notify('🔑 REVIVED BY KEY!');tone(1100,.3);updateItemHud();return;
- }
- analytics.track('crash_reason',{mode:'explore',reason:run.fuel<=0?'fuel':'impact'});state='crashing';crashTime=0;resetInput();$('arrows').hidden=true;$('steerHint').textContent='';tone(85,.6,'sawtooth',.07);if(settings.vibration&&navigator.vibrate)navigator.vibrate([45,30,70]);for(let i=0;i<42;i++)emit(ship.x,ship.y,rnd(-130,130),rnd(-150,150),rnd(.4,1.7),'#ff9d58',rnd(1,3));finish();
-}
-function emit(x,y,vx,vy,life,color,size){particles.take({x,y,vx,vy,life,maxLife:life,color,size});}
-function spawn(){
- const z=ZONES[zone],phase=exp.phase,active=phase==='event'&&exp.warning===0,event=active?exp.event:zone===2&&phase==='challenge'?'rings':null;
- const wave=exp.wave||0;exp.wave=wave+1;
- const calm=['calm','recovery','discovery'].includes(phase);
- const shipGap=52; // just wide enough for the ship to squeeze through
- const count=calm?3:event==='rings'?3:zone>=2?6:5;
+    // Soft glowing particle
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillCircle(4, 4, 4);
 
- // 1. Generate random obstacle positions across the FULL width
- const rocks=[];
- for(let i=0;i<count;i++){
-  const r=rnd(17,calm?25:34);
-  rocks.push({x:rnd(r+5,W-r-5),y:-55-rnd(0,count*25),r});
- }
-
- // 2. Sort by x, find the widest natural gap
- rocks.sort((a,b)=>a.x-b.x);
- let bestGapIdx=-1, bestGapSize=0;
- // Check gap before first rock
- let leftEdge=rocks[0].x-rocks[0].r;
- if(leftEdge>bestGapSize){bestGapSize=leftEdge;bestGapIdx=-1;}
- // Check gaps between rocks
- for(let i=1;i<rocks.length;i++){
-  const gapSize=(rocks[i].x-rocks[i].r)-(rocks[i-1].x+rocks[i-1].r);
-  if(gapSize>bestGapSize){bestGapSize=gapSize;bestGapIdx=i-1;}
- }
- // Check gap after last rock
- let rightEdge=W-(rocks[rocks.length-1].x+rocks[rocks.length-1].r);
- if(rightEdge>bestGapSize){bestGapSize=rightEdge;bestGapIdx=rocks.length;}
-
- // 3. If the biggest gap is too narrow, remove one rock to widen it
- if(bestGapSize<shipGap){
-  // Pick a random rock to remove (not always the same one)
-  const removeIdx=Math.floor(rnd(0,rocks.length));
-  const removed=rocks.splice(removeIdx,1)[0];
-  // Place coins where the removed rock was
-  if(phase!=='discovery')for(let j=0;j<3;j++)pickups.take({x:removed.x,y:removed.y-j*38,type:'coin',r:10});
- }else{
-  // Place coins in the biggest natural gap
-  let coinX;
-  if(bestGapIdx===-1)coinX=leftEdge/2;
-  else if(bestGapIdx===rocks.length)coinX=W-rightEdge/2;
-  else coinX=(rocks[bestGapIdx].x+rocks[bestGapIdx].r+rocks[bestGapIdx+1].x-rocks[bestGapIdx+1].r)/2;
-  coinX=clamp(coinX,20,W-20);
-  if(phase!=='discovery')for(let j=0;j<3;j++)pickups.take({x:coinX,y:-70-j*38,type:'coin',r:10});
- }
-
- // 4. Spawn all remaining rocks as obstacles
- for(const rock of rocks){
-  const isHunter=!calm&&Math.random()<.2;
-  let type=isHunter?'meteor':event==='meteor'||event==='comet'?'meteor':event==='debris'?'wreck':Math.random()<.18?'satellite':Math.random()<.16?'wreck':'rock';
-  const vx=event==='meteor'?(exp.cycle%2?24:-24):event==='comet'?30:0;
-  obstacles.take({x:rock.x,y:rock.y,r:rock.r,angle:rnd(0,6.28),spin:rnd(-.35,.35),speed:Math.min(260,z.speed*(event==='meteor'?1.12:1)),vx,type,texture:Math.floor(rnd(0,8)),passed:false,near:false,closest:Infinity,contacted:false,homing:isHunter,homingStr:rnd(40,80)});
-  if(event==='comet')pickups.take({x:rock.x-30,y:rock.y-70,type:'coin',r:10});
- }
-}
-function update(dt){
- if(activeMode==='tap'&&['tapready','tap','tapcrashing','tapover'].includes(state)){
-  if(activeMagnetTime>0){activeMagnetTime-=dt;systems.exploreBehavior.magnet=Math.max(systems.exploreBehavior.magnet,140);}
-  updateTap(dt);return;
- }
- clock+=dt;elapsed+=dt;if(toastTime>0){toastTime-=dt;if(toastTime<=0){$('toast').classList.remove('visible');$('toast').textContent='';}}
- if(state==='launch'){launchTime+=dt;if(launchTime>=1.35)begin();}
- if(state==='playing'){
-  if(!updateExpedition(dt))return;
-  if(activeMagnetTime>0){activeMagnetTime-=dt;systems.craft.exploreBehavior.magnet=Math.max(systems.craft.exploreBehavior.magnet,140);}
-  if(run.fuel<10&&progress.itemCount('fuel_tank')>0){
-   progress.useItem('fuel_tank');run.fuel=Math.min(100,run.fuel+50);notify('⛽ FUEL TANK AUTO-REFILLED (+50%)');tone(880,.2);updateItemHud();
-  }
-  const oldX=ship.x,oldY=ship.y;tickSystems(systems,dt);steer(ship,input,dt,systems.craft.agility);
-  const z=ZONES[zone];run.speed+=clamp(z.speed-run.speed,-3*dt,3*dt);run.distance+=run.speed*dt*BALANCE.metersPerPixel*(systems.overdrive>0?1.25:1);run.fuel=Math.max(0,run.fuel-dt*2.1*systems.craft.exploreBehavior.fuel*systems.efficiencyBonus);run.shield=Math.max(0,run.shield-dt);
-  const next=zoneAt(run.distance);if(next!==zone){zone=next;analytics.track('region_reached',{region:zone});notify(ZONES[zone].name);tone(180,.35);}
-  spawnClock-=dt;if(spawnClock<=0){spawn();spawnClock=ZONES[zone].interval*(['calm','recovery','discovery'].includes(exp.phase)?1.2:exp.phase==='event'?.8:.9);}
-  pickupClock-=dt;if(pickupClock<=0){const type=run.fuel<50?'fuel':Math.random()<.2?'bomb':Math.random()<.25?'star':'coin';pickups.take({x:rnd(42,W-42),y:-25,type,r:type==='bomb'?14:10});pickupClock=type==='fuel'?2:1.6;}
-  for(const o of obstacles.items){if(!o.active)continue;const ax=o.x-oldX,ay=o.y-oldY;if(o.speed>0)o.speed+=clamp(run.speed*(o.type==='meteor'?1.12:1)-o.speed,-3*dt,3*dt);if(o.homing&&o.y<ship.y-30){const dx=ship.x-o.x;o.vx+=(dx>0?1:-1)*o.homingStr*dt;}o.y+=o.speed*dt*(systems.overdrive>0?1.25:1);o.x=clamp(o.x+o.vx*dt,5,W-5);o.angle+=o.spin*dt;const distance=sweptDistance(ax,ay,o.x-ship.x,o.y-ship.y);o.closest=Math.min(o.closest,distance);if(distance<o.r*.76+systems.craft.exploreBehavior.radius){o.contacted=true;if(run.shield>0){o.active=false;for(let i=0;i<10;i++)emit(o.x,o.y,rnd(-50,50),rnd(-50,50),.5,'#a9e8ff',2);}else{const hit=takeImpact(systems,o.r*.76+systems.craft.exploreBehavior.radius-distance,Math.abs(o.x-ship.x)<o.r*.65||o.type==='meteor');if(hit==='fatal'){crash();break;}if(hit==='damaged'){o.active=false;notify('HULL DAMAGED');tone(140,.16,'triangle');}}}if(!o.passed&&o.y>ship.y+o.r+12){o.passed=true;run.score++;if(o.closest<o.r*.76+27&&o.closest>=o.r*.76+systems.craft.exploreBehavior.radius&&!o.contacted){const bonus=nearMiss(run,systems);notify(`NEAR MISS ×${run.combo}  +${bonus}`);if(!trial)progress.metric('near');analytics.track('near_miss',{combo:run.combo});tone(640,.1);}}if(o.y>H+80)o.active=false;}
-  if(state==='playing')for(const p of pickups.items){if(!p.active)continue;p.y+=run.speed*dt*(systems.overdrive>0?1.25:1);attractCoin(p,ship,systems,dt);if(Math.hypot(p.x-ship.x,p.y-ship.y)<25){p.active=false;if(p.type==='bomb'){detonateMine(p.x,p.y);if(run.shield>0){run.shield=0;notify('SHIELD ABSORBED MINE');}else if(takeImpact(systems,999,true)==='fatal'){crash();break;}else notify('MINE DEFLECTED');}else{tone(p.type==='coin'?820:1050,.12);if(p.type==='coin')run.coins++;if(p.type==='fuel'){run.fuel=Math.min(100,run.fuel+25);notify('FUEL +25');}if(p.type==='star'){if(!trial&&run.combo>=2)progress.metric('chainStars');run.stars++;run.score+=3;if(run.stars%3===0){run.shield=selected==='cosmic_pink'?8:5;notify('SHIELD ONLINE');}}}}if(p.y>H+25)p.active=false;}
-  if(state==='playing'){for(const [i,done,reward] of [[0,run.stars>=5,25],[1,run.near>=3,30],[2,run.distance>=1000,40]])if(done&&!run.missions[i]&&!trial){run.missions[i]=true;run.reward+=reward;notify(`MISSION COMPLETE  +${reward} COINS`);}if(run.fuel<=0){finish();state='ended';show('summary');}}
-  if(run.distance>150)$('steerHint').textContent='';
-  hudClock+=dt;if(hudClock>.1){hudClock=0;$('fuelFill').style.width=`${run.fuel}%`;$('fuelFill').style.background=run.fuel<25?'#ee906b':'#57dfb5';$('coins').textContent=run.coins;$('distance').textContent=Math.floor(run.distance).toLocaleString();$('danger').textContent=REGIONS[zone].name;$('skillScore').textContent=run.score;$('multiplier').textContent=run.combo>1?`×${run.combo}`:'';updateFlightReadout();}
- }
- if(state==='crashing'){crashTime+=dt;ship.bank+=dt*1.6;ship.x+=Math.sin(crashTime*2)*dt*14;ship.y+=(180-ship.y)*(1-Math.exp(-dt*2.4));for(const o of obstacles.items)if(o.active)o.y+=o.speed*dt*.12;if(crashTime>1.65){state='crashed';show('crashed');}}
- if(state!=='paused')for(const p of particles.items){if(!p.active)continue;p.life-=dt;if(p.life<=0)p.active=false;else{p.x+=p.vx*dt;p.y+=p.vy*dt;}}
- if(state==='playing'&&Math.random()<quality)emit(ship.x+rnd(-3,3),ship.y+22,-ship.vx*.12,rnd(65,120),.45,'#64bdff',rnd(.6,1.6));
- if(humGain&&audio)humGain.gain.setTargetAtTime(settings.music&&state!=='paused'?.018:0,audio.currentTime,.3);
-}
-// Artwork is generated once into reusable textures. No downloaded assets or per-frame filters.
-function surface(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
-let seed=784;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
-const stars=Array.from({length:165},()=>({x:rand()*W,y:rand()*H,r:.3+rand()*.9,depth:.2+rand()*.8,alpha:.15+rand()*.65}));
-const nebula=surface(390,780);{const c=nebula.getContext('2d');for(let i=0;i<38;i++){const x=rand()*W,y=rand()*H,r=rand()*130+40,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,i%2?'#3a497d19':'#59417415');g.addColorStop(1,'#00000000');c.fillStyle=g;c.fillRect(0,0,W,H);}}
-const rockTextures=Array.from({length:8},(_,index)=>{const c=surface(128,128),g=c.getContext('2d');const vertices=Array.from({length:12},(_,i)=>{const a=i/12*Math.PI*2,r=45+rand()*13;return [64+Math.cos(a)*r,64+Math.sin(a)*r];});g.beginPath();vertices.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();const grad=g.createLinearGradient(20,5,105,115);grad.addColorStop(0,index%2?'#bd9d8f':'#a1b6d1');grad.addColorStop(.25,'#54617b');grad.addColorStop(.7,'#222e47');grad.addColorStop(1,'#101a2b');g.fillStyle=grad;g.fill();g.save();g.clip();for(let j=0;j<25;j++){const x=rand()*128,y=rand()*128,r=4+rand()*14;g.beginPath();g.moveTo(x-r,y);g.lineTo(x-r*.5,y-r);g.lineTo(x+r*.65,y-r*.75);g.lineTo(x+r,y+r*.4);g.lineTo(x,y+r);g.closePath();g.fillStyle=j%3?'#111c305e':'#b8b1b123';g.fill();g.beginPath();g.moveTo(x-r,y);g.lineTo(x-r*.5,y-r);g.lineTo(x+r*.65,y-r*.75);g.strokeStyle='#d2bbad55';g.lineWidth=1.3;g.stroke();}g.restore();return c;});
-const planet=surface(520,520);{const c=planet.getContext('2d');c.save();c.beginPath();c.arc(260,260,248,0,Math.PI*2);c.clip();const g=c.createLinearGradient(10,30,440,430);g.addColorStop(0,'#758fc6');g.addColorStop(.22,'#4969a4');g.addColorStop(.6,'#253d69');g.addColorStop(1,'#040b18');c.fillStyle=g;c.fillRect(0,0,520,520);for(let i=0;i<1600;i++){const x=rand()*520,y=rand()*520,r=rand()*13+2;c.beginPath();c.ellipse(x,y,r*2,r,rand()*3,0,7);c.fillStyle=i%3?'#07142c25':'#88a5de12';c.fill();}const shadow=c.createRadialGradient(135,100,30,310,300,290);shadow.addColorStop(0,'#00000000');shadow.addColorStop(.6,'#02091412');shadow.addColorStop(1,'#02071190');c.fillStyle=shadow;c.fillRect(0,0,520,520);c.restore();c.beginPath();c.arc(260,260,248,3.65,5.3);c.strokeStyle='#a2bff39c';c.lineWidth=2;c.stroke();}
-function drawRocket(x,y,size,bank,engine,fin,id=selected){ctx.save();ctx.translate(x,y);ctx.rotate(bank);ctx.scale(size,size);if(id==='atlas')ctx.scale(1.15,.96);if(id==='comet')ctx.scale(.88,1.12);if(engine){const length=36+Math.sin(clock*32)*5+Math.abs(ship.vx)*.035;const g=ctx.createLinearGradient(0,16,0,16+length);g.addColorStop(0,'#d4f6ff');g.addColorStop(.2,'#51ccffb0');g.addColorStop(.55,'#256cea65');g.addColorStop(1,'#235cff00');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-5,18);ctx.quadraticCurveTo(-9,33,0,18+length);ctx.quadraticCurveTo(9,33,5,18);ctx.fill();ctx.fillStyle='#d4f7ff';ctx.fillRect(-2,17,4,9);}
- ctx.fillStyle=fin;ctx.beginPath();ctx.moveTo(-6,-6);ctx.lineTo(-17,17);ctx.lineTo(-16,25);ctx.lineTo(-6,16);ctx.lineTo(6,16);ctx.lineTo(16,25);ctx.lineTo(17,17);ctx.lineTo(6,-6);ctx.fill();
- const body=ctx.createLinearGradient(-8,0,8,0);body.addColorStop(0,'#7b8ca5');body.addColorStop(.4,'#f5f2e7');body.addColorStop(.7,'#d5dfec');body.addColorStop(1,'#778da9');ctx.fillStyle=body;ctx.beginPath();ctx.moveTo(0,-28);ctx.bezierCurveTo(-8,-17,-10,4,-7,17);ctx.lineTo(7,17);ctx.bezierCurveTo(10,4,8,-17,0,-28);ctx.fill();ctx.fillStyle=fin;ctx.beginPath();ctx.moveTo(0,-28);ctx.lineTo(-5,-15);ctx.lineTo(5,-15);ctx.fill();ctx.fillStyle='#223a56';ctx.beginPath();ctx.ellipse(0,-5,4.8,6.4,0,0,7);ctx.fill();ctx.strokeStyle='#8ebce1';ctx.lineWidth=1;ctx.stroke();ctx.fillStyle='#69a9cf';ctx.beginPath();ctx.ellipse(-1.2,-7,1.4,2,0,0,7);ctx.fill();ctx.fillStyle=fin;ctx.fillRect(-6,4,12,3);if(['ranger','atlas','odyssey'].includes(id)){ctx.fillStyle='#93a8c2';ctx.fillRect(-9,1,3,14);ctx.fillRect(6,1,3,14);}if(['magnetar','voyager','phantom'].includes(id)){ctx.strokeStyle=fin;ctx.lineWidth=1.4;ctx.beginPath();ctx.ellipse(0,8,12,4,0,0,7);ctx.stroke();}ctx.fillStyle='#172a42';ctx.fillRect(-5,15,10,5);ctx.strokeStyle='#526983';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(0,4);ctx.lineTo(0,14);ctx.stroke();ctx.restore();}
-function draw(){
- ctx.setTransform(canvas.width/W,0,0,canvas.height/H,0,0);
- if(activeMode==='tap'&&(['tapready','tap','tapcrashing','tapover'].includes(state)||['paused','upgrade'].includes(state))){renderTap(ctx,tapFlight,{stars,nebula,planet,deepSky:menuArt,background:'default'},shipPaint(),clock,quality,state==='paused',COSMETICS.find(c=>c.id===progress.data.equippedTrail)?.color);return;}
- ctx.fillStyle='#030914';ctx.fillRect(0,0,W,H);
- const flying=['playing','launch','paused','crashing','crashed','ended','upgrade'].includes(state),travel=run&&flying?run.distance:clock*2;
- ctx.save();if(state==='crashing'&&!motionReduced&&crashTime<.4)ctx.translate(rnd(-4,4)*(1-crashTime/.4),rnd(-4,4)*(1-crashTime/.4));
- if(flying&&menuArt?.complete&&menuArt.naturalWidth){ctx.globalAlpha=.3;ctx.drawImage(menuArt,0,menuArt.naturalHeight*.27,menuArt.naturalWidth,menuArt.naturalHeight*.38,0,-40-Math.sin(travel*.0002)*40,W,H+80);ctx.globalAlpha=1;}ctx.drawImage(nebula,0,0);
- for(const s of stars){ctx.globalAlpha=s.alpha;ctx.fillStyle=s.depth>.8?'#bfd6ff':'#8297bf';const sy=(s.y+travel*s.depth*.7)%H;ctx.fillRect(s.x-(flying?ship.bank*6*s.depth:0),sy,s.r,s.r);if(s.r>1.1&&s.alpha>.7){ctx.globalAlpha=.13;ctx.fillRect(s.x-3,sy,7,.7);ctx.fillRect(s.x,sy-3,.7,7);}}ctx.globalAlpha=1;
- if(!flying||state==='launch'){ctx.save();const launchBlend=state==='launch'?clamp(launchTime/1.35,0,1):0;ctx.globalAlpha=1-launchBlend;ctx.translate(0,-launchBlend*110);ctx.drawImage(planet,245,-65,265,265);ctx.globalAlpha=.7*(1-launchBlend);ctx.drawImage(planet,-48,420,126,126);ctx.globalAlpha=1-launchBlend;if(page==='home'||state==='launch')ctx.drawImage(planet,-125,525,645,645);ctx.restore();}
- else {const landmark=Math.floor(travel*.12/1450),py=-420+(travel*.12)%1450;ctx.globalAlpha=.72;ctx.drawImage(planet,landmark%2?-155:235,py,310,310);ctx.globalAlpha=1;}
- if(flying){for(const o of obstacles.items){if(!o.active)continue;ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.angle);if(o.type==='field'){ctx.strokeStyle='#a09cea60';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,o.r*.8,0,7);ctx.stroke();ctx.fillStyle='#9d94e81c';ctx.fill();ctx.beginPath();ctx.ellipse(0,0,o.r,o.r*.3,clock,0,7);ctx.stroke();}else if(o.type==='satellite'||o.type==='wreck'){ctx.fillStyle='#21344c';ctx.fillRect(-o.r,-o.r*.35,o.r*2,o.r*.7);ctx.strokeStyle='#78849b';ctx.lineWidth=1;ctx.strokeRect(-o.r,-o.r*.35,o.r*2,o.r*.7);for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(i*o.r/3,-o.r*.35);ctx.lineTo(i*o.r/3,o.r*.35);ctx.stroke();}ctx.fillStyle=o.type==='wreck'?'#a66c58':'#a6a5a7';ctx.fillRect(-6,-13,12,26);if(o.type==='wreck'){ctx.fillStyle='#050c19';ctx.fillRect(8,-10,20,10);ctx.fillStyle='#e69a6244';ctx.fillRect(-3,6,4,7);}ctx.strokeStyle='#b6c6d3';ctx.beginPath();ctx.moveTo(0,-13);ctx.lineTo(4,-25);ctx.stroke();}else{if(o.type==='meteor'){const g=ctx.createLinearGradient(0,-120,0,0);g.addColorStop(0,'#ff874000');g.addColorStop(1,'#ff874063');ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(0,-120);ctx.lineTo(o.r*.6,0);ctx.lineTo(-o.r*.6,0);ctx.fill();}ctx.drawImage(rockTextures[o.texture],-o.r,-o.r,o.r*2,o.r*2);}ctx.restore();}
- for(const p of pickups.items){if(!p.active)continue;ctx.save();ctx.translate(p.x,p.y);ctx.fillStyle=p.type==='fuel'?'#77e7de':'#f5cd74';ctx.strokeStyle=p.type==='fuel'?'#a4fff0':'#fff0b4';if(p.type==='coin'){ctx.beginPath();ctx.ellipse(0,0,6+Math.abs(Math.sin(clock*2))*2,9,0,0,7);ctx.fill();ctx.stroke();ctx.strokeStyle='#a96c29';ctx.beginPath();ctx.ellipse(0,0,4,6,0,0,7);ctx.stroke();}else if(p.type==='star'){ctx.beginPath();for(let i=0;i<10;i++){let a=i*Math.PI/5-Math.PI/2,r=i%2?4:10;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}ctx.closePath();ctx.fill();}else if(p.type==='bomb'){drawMine(ctx,0,0,clock);}else{ctx.strokeRect(-7,-10,14,20);ctx.fillRect(-4,-4,8,11);ctx.fillRect(-3,-13,6,3);}ctx.restore();}
- }
- for(const p of particles.items)if(p.active){ctx.globalAlpha=Math.max(0,p.life/p.maxLife);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.size,p.size);}ctx.globalAlpha=1;
- if(page==='home'||state==='launch'){if(menuArt?.complete&&menuArt.naturalWidth){ctx.save();ctx.globalAlpha=state==='launch'?1-clamp(launchTime/1.35,0,1):1;ctx.drawImage(menuArt,0,0,W,H);ctx.restore();}const t=state==='launch'?clamp(launchTime/1.35,0,1):0;drawRocket(W/2,335+(602-335)*t+Math.sin(clock*1.4)*2,1.3-t*.44,0,true,shipPaint());}
- else if(page==='rockets'){const el=document.querySelector('.rocket-space'),rect=el?.getBoundingClientRect(),base=canvas.getBoundingClientRect();drawRocket(195,rect?(rect.top-base.top+rect.height/2)*H/base.height:300,1.9,Math.sin(clock*.7)*.025,true,shipPaint(rockets[preview].id),rockets[preview].id);}
- else if(flying){drawSystemAura(ctx,ship.x,ship.y,systems,clock,run?.shield||0);if(state==='playing'&&toastTime>1.5&&$('toast').textContent.startsWith('NEAR MISS')){ctx.strokeStyle='#a9deef40';ctx.beginPath();ctx.arc(ship.x,ship.y,30+(2.2-toastTime)*45,0,7);ctx.stroke();}if(run?.shield>0){ctx.strokeStyle='#87dffb80';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(ship.x,ship.y,23,35,ship.bank,0,7);ctx.stroke();}drawRocket(ship.x,ship.y,.86*(systems.craft.exploreBehavior.radius/9)**.35,ship.bank,state==='playing'||state==='paused',shipPaint());}
- // Sparse out-of-focus foreground dust adds another depth plane without hiding the route.
- if(flying&&quality>.6)for(let i=0;i<5;i++){ctx.fillStyle='#8bafe018';ctx.beginPath();ctx.arc((i*97+31)%W,(i*163+travel*2)%H,2,0,7);ctx.fill();}
- drawExpedition();ctx.restore();
-}
-function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);}
-const renderTap = createTapRenderer(surface);
-function playStudioIntro(){
- const el=$('studioIntro');
- if(!el)return;
- setTimeout(()=>{
-  el.classList.add('fade-out');
-  setTimeout(()=>{el.hidden=true;},600);
- },2200);
-}
-window.addEventListener('resize',resize);resize();persistProfile();show('home');playStudioIntro();let last=performance.now();
-function frame(now){if(document.hidden){last=now;requestAnimationFrame(frame);return;}const raw=(now-last)/1000;last=now;if(raw>.023)slowFrames++;else slowFrames=Math.max(0,slowFrames-1);if(settings.graphics==='LOW')quality=.45;else if(settings.graphics==='HIGH')quality=1;else if(slowFrames>90)quality=.5;const dt=Math.min(raw,.033);if(state!=='paused')update(dt);draw();requestAnimationFrame(frame);}requestAnimationFrame(frame);
-
-
-// Shared progression adapters. Legacy keys remain mirrors for existing installations.
-function persistProfile(){Object.assign(progress.data,{coins:wallet,ownedRockets:unlocked,equippedRocket:selected,exploreBestDistance:bestDistance,exploreBestScore:best,tapBestScore:tapBest,exploreRecords:records,tapRecords,settings});progress.commit();if(progress.error)$('storageNotice').hidden=false;save('wilifunkCoins',wallet);save('wilifunkUnlockedRockets',unlocked);save('spaceRocketHighScore',best);save('spacerootRecords',records);save('spacehullTapBestScore',tapBest);save('spacehullTapRecords',tapRecords);save('spacerootSettings',settings);try{localStorage.setItem('wilifunkSelectedRocket',selected);}catch{}}
-function pullProfile(){wallet=progress.data.coins;unlocked=progress.data.ownedRockets;bestDistance=progress.data.exploreBestDistance;}
-function shipPaint(id=selected){const c=COSMETICS.find(c=>c.id===progress.data.rocketPaints?.[id]);return c?.color||rocketById(id).fin;}
-function tickToast(dt){if(toastTime>0){toastTime-=dt;if(toastTime<=0){$('toast').textContent='';$('toast').classList.remove('visible');}}}
-function showMeta(name){
- if(name!=='upgrade')state='menu';
- if(name==='space-map')screen.innerHTML=mapUI(progress,mapMode);
- if(name==='missions')screen.innerHTML=missionsUI(progress,missionTab);
- if(name==='rocket-list')screen.innerHTML=rocketListUI(progress);
- if(name==='cosmetics')screen.innerHTML=cosmeticsUI(progress);
- if(name==='store')screen.innerHTML=storeUI(progress,ads);
- if(name==='milestone'){const m=rewardQueue[0];screen.innerHTML=`${header('MILESTONE REWARD',rewardReturn)}<div class="milestone-art">✦</div><div class="center"><div class="eyebrow">YOUR JOURNEY GROWS</div><h2>${m?.label||'ALL REWARDS CLAIMED'}</h2><p>${m?'Permanently added to your collection.':'Your next discovery is out there.'}</p></div><div style="margin-top:auto">${button('CONTINUE','next-reward','primary')}</div>`;}
- if(name==='upgrade'){state='upgrade';screen.innerHTML=`<header><h2>CHOOSE SYSTEM</h2></header><p>One temporary expedition upgrade. It expires when this run ends.</p>${button('REINFORCED HULL · +1 light impact','upgrade-armor')}${button('GRAVITY ARRAY · stronger coin attraction','upgrade-magnet')}${button(activeMode==='tap'?'SHIELD · 8 seconds protection':'ION DRIVE · improved fuel efficiency','upgrade-efficiency')}`;}
- if(name==='reset-confirm')screen.innerHTML=`${header('RESET PROGRESS','settings')}<p>This resets this device’s coins, records, unlocks and settings. A local recovery copy is retained.</p>${button('RESET LOCAL PROGRESS','reset-now')}${button('KEEP MY PROGRESS','settings','primary')}`;
-}
-function handleMetaAction(a){
- if(a==='ad-rescue'||a==='ad-double'){void requestReward(a.slice(3));return true;}
- if(a.startsWith('buy-item-')){const id=a.slice(9);if(progress.buyItem(id)){pullProfile();persistProfile();tone(960,.12);notify('ITEM PURCHASED');}else notify('CANNOT PURCHASE ITEM');show('store');return true;}
- if(a.startsWith('ad-item-')){const id=a.slice(8);void requestRewardItem(id);return true;}
- if(a.startsWith('rocket-')&&/^rocket-\d+$/.test(a)){preview=Number(a.slice(7));analytics.track('rocket_previewed',{id:rockets[preview].id});show('rockets');return true;}
- if(a==='try-rocket'){trial={remaining:BALANCE.trialSeconds,previous:selected};selected=rockets[preview].id;activeMode='explore';start();return true;}
- if(a==='map-explore'||a==='map-tap'){mapMode=a.slice(4);show('space-map');return true;}
- if(a.startsWith('mission-tab-')){missionTab=a.slice(12);show('missions');return true;}
- if(a.startsWith('claim-mission-')){if(progress.claimMission(a.slice(14))){pullProfile();persistProfile();tone(900,.15);}show('missions');return true;}
- if(a.startsWith('cosmetic-')){const id=a.slice(9);if(id==='default'){delete progress.data.rocketPaints[selected];progress.data.equippedPaint='';progress.data.equippedTrail='';progress.data.equippedBackground='';progress.commit();}else if(!progress.cosmetic(id))notify('UNLOCK THIS REWARD FIRST');pullProfile();persistProfile();show('cosmetics');return true;}
- if(a==='graphics'){settings.graphics=({AUTO:'LOW',LOW:'HIGH',HIGH:'AUTO'})[settings.graphics||'AUTO'];persistProfile();show('settings');return true;}
- if(a==='view-rewards'){rewardReturn=page;show('milestone');return true;}
- if(a==='next-reward'){rewardQueue.shift();show(rewardQueue.length?'milestone':rewardReturn);return true;}
- if(a.startsWith('upgrade-')){const type=a.slice(8),s=activeMode==='tap'?tapFlight.systems:systems;if(type==='armor')s.armor++;if(type==='magnet')s.magnetBonus+=25;if(type==='efficiency'){s.efficiencyBonus*=.85;if(activeMode==='tap')s.shield=8;}if(activeMode==='tap'){state='tap';page='tap-flight';$('tapHud').hidden=false;}else{exp.upgrades.push(type);state='playing';page='flight';$('hud').hidden=false;$('arrows').hidden=settings.mode!=='arrows';}screen.innerHTML='';updateFlightReadout();return true;}
- if(a==='class-open'||a==='class-classic'){boardClass=a.slice(6);show('leaderboard');return true;}
- if(a==='metric-coins'||a==='metric-distance'){boardMetric=a.slice(7);show('leaderboard');return true;}
- if(a==='reset-now'){try{localStorage.setItem('spacehullResetBackup',JSON.stringify(progress.data));for(const key of ['spacehullProfile','spacehullProfileBackup','wilifunkCoins','wilifunkUnlockedRockets','wilifunkSelectedRocket','spaceRocketHighScore','spacerootRecords','spacehullTapBestScore','spacehullTapRecords','spaceRocketBadges','spacerootSettings'])localStorage.removeItem(key);location.reload();}catch{notify('RESET UNAVAILABLE');}return true;}
- return false;
-}
-async function requestRewardItem(itemId){
- if(!ads.available)return;
- analytics.track('rewarded_ad_accepted',{placement:`store_${itemId}`});
- const earned=await ads.request(`store:${itemId}:${Date.now()}`,`store_${itemId}`);
- if(!earned){notify('REWARD NOT COMPLETED');return;}
- analytics.track('rewarded_ad_completed',{placement:`store_${itemId}`});
- progress.addItem(itemId);pullProfile();persistProfile();notify('FREE ITEM CLAIMED');show('store');
-}
-function endTrial(){if(!trial)return;selected=trial.previous;trial=null;systems=createSystems(selected);show('rockets');}
-function updateAbility(s){const phase=s.craft.ability==='PHASE',boost=s.craft.ability==='OVERDRIVE';const ready=phase?!s.phaseUsed:boost&&s.energy>=100;const b=$('abilityButton');b.hidden=!(phase||boost)||!['playing','tap','tapready'].includes(state);b.disabled=!ready;b.textContent=phase?(s.phaseUsed?'PHASE USED':'PHASE'):ready?'OVERDRIVE':`DRIVE ${Math.floor(s.energy)}%`;}
-$('abilityButton').onclick=()=>{const s=activeMode==='tap'?tapFlight.systems:systems;if(activateSystem(s)){tone(350,.2);analytics.track('ability_activated',{rocket:s.id});}};
-function updateExpedition(dt){
- exp.time+=dt;decayCombo(run,dt);updateAbility(systems);
- if(trial){trial.remaining-=dt;$('eventBanner').textContent=`TEST FLIGHT · ${Math.ceil(trial.remaining)}s · NO REWARDS`;if(trial.remaining<=0){endTrial();return false;}return true;}
- const cycle=Math.floor(exp.time/BALANCE.cycleSeconds),phase=pacing(exp.time);
- if(cycle!==exp.cycle){Object.assign(exp,{cycle,routeMade:false,discoveryMade:false,eventSurvived:false,event:eventFor(zone,cycle)});}
- if(phase!==exp.phase){exp.phase=phase;if(phase==='event'){exp.event=run.distance>=35000&&!progress.data.components.includes('engine_core')?'flare':eventFor(zone,cycle);exp.warning=2;notify(`${EVENTS[exp.event]} · INCOMING`);analytics.track('event_started',{event:exp.event});}if(phase==='recovery'){exp.eventSurvived=true;if(exp.event==='meteor')progress.metric('storms');if(exp.event==='flare'&&run.distance>=35000&&!progress.data.components.includes('engine_core')){progress.data.components.push('engine_core');notify('ENGINE CORE RECOVERED');progress.commit();}run.fuel=Math.min(100,run.fuel+12);}}
- exp.warning=Math.max(0,exp.warning-dt);
- if(phase==='event'&&exp.warning===0&&exp.event==='gravity'){ship.x=clamp(ship.x+(cycle%2?1:-1)*42*(1-(systems.craft.exploreBehavior.resistance||0))*dt,22,W-22);}
- if(phase==='route'&&!exp.routeMade){exp.routeMade=true;pickups.take({x:exp.safeGap||195,y:-150,type:'star',r:10});notify('MINERAL ROUTE · FOLLOW THE COINS');}
- const checkpoint=Math.floor(run.distance/500);if(checkpoint>run.checkpoint){run.checkpoint=checkpoint;bestDistance=Math.max(bestDistance,run.distance);progress.metric('distance',run.distance,true);persistProfile();const rewards=progress.advance('explore',run.distance);if(rewards.length){for(const reward of rewards)analytics.track('milestone_claimed',{id:reward.id});rewardQueue.push(...rewards);pullProfile();notify(`MILESTONE · ${rewards.at(-1).label}`);}analytics.track('distance_reached',{distance:checkpoint*500});}
- if(systems.craft.ability==='ADAPTIVE_SYSTEM'&&run.distance>=exp.nextUpgrade){exp.nextUpgrade+=5000;show('upgrade');return false;}
- if(phase==='event'&&exp.event==='flare')run.fuel=Math.max(0,run.fuel-dt*.8*(1-(systems.craft.exploreBehavior.resistance||0)));
- const ahead=bestDistance-run.distance;
- $('eventBanner').className=phase==='event'?'event-active':'';$('eventBanner').textContent=phase==='event'?`${EVENTS[exp.event]}${exp.warning>0?' · INCOMING':''}`:ahead>0&&ahead<600?`BEST DISTANCE · ${Math.ceil(ahead)} m AHEAD`:phase==='recovery'?'RECOVERY · CLEAR SPACE':'';
- return true;
-}
-function drawExpedition(){
- if(!['playing','paused','crashing','crashed','ended','upgrade'].includes(state)||activeMode!=='explore')return;
- if(systems.phase>0){ctx.strokeStyle='#b6b2ee';ctx.beginPath();ctx.ellipse(ship.x,ship.y,24,35,0,0,7);ctx.stroke();}
- if(systems.damage>0){ctx.fillStyle='#111825';ctx.fillRect(ship.x-13,ship.y+8,7,9);for(let i=0;i<systems.damage*3;i++){ctx.fillStyle=i%2?'#ffa660a0':'#8493a83a';ctx.beginPath();ctx.arc(ship.x+Math.sin(i+clock*3)*6,ship.y+25+(clock*25+i*13)%55,2+i*.4,0,7);ctx.fill();}ctx.fillStyle='#e6a17b';ctx.font='8px sans-serif';ctx.fillText(systems.armor?'HULL DAMAGED':'HULL CRITICAL',ship.x-28,ship.y-40);}
- const trail=COSMETICS.find(c=>c.id===progress.data.equippedTrail);if(trail||systems.overdrive>0){ctx.strokeStyle=trail?.color||'#eee0ff';ctx.globalAlpha=.35;ctx.lineWidth=systems.overdrive>0?4:2;ctx.beginPath();ctx.moveTo(ship.x,ship.y+23);ctx.lineTo(ship.x,ship.y+75);ctx.stroke();ctx.globalAlpha=1;}
-}
-// Provider integration point: no ads or online-looking buttons without a real adapter.
-export function configureServices(services={}){ads.adapter=services.rewardedAds||null;if(['home','crashed','ended','tapover'].includes(state))show(page);}
-export function getBalanceEvents(){return analytics.events.map(event=>({...event}));}
-function adActions(){if(!ads.available||trial)return '';const id=activeMode==='tap'?tapFlight.id:run?.id;const rescueUsed=activeMode==='tap'?tapFlight.rescueUsed:run?.rescueUsed;const doubled=ads.claimed.has(`${id}:double`);return `<div class="optional-rewards">${!rescueUsed?button('🎬 WATCH AD TO REVIVE (KEY)','ad-rescue'):''}${!doubled?button('🎬 WATCH AD TO DOUBLE COINS','ad-double'):''}</div>`;}
-async function requestReward(kind){
- if(!ads.available||['playing','tap','tapready','launch'].includes(state))return;
- const id=activeMode==='tap'?tapFlight.id:run?.id;
- const rescueUsed=activeMode==='tap'?tapFlight.rescueUsed:run?.rescueUsed;
- if(kind==='rescue'&&rescueUsed)return;
- analytics.track('rewarded_ad_accepted',{placement:kind});
- const earned=await ads.request(`${id}:${kind}`,kind);if(!earned){notify('REWARD NOT COMPLETED');return;}
- analytics.track('rewarded_ad_completed',{placement:kind});
- if(kind==='double'){wallet+=activeMode==='tap'?tapFlight.coins:run.coins;persistProfile();show(page);notify('BONUS COINS CLAIMED');}
- if(kind==='rescue'){
-  if(activeMode==='tap'){
-   tapFlight.rescueUsed=true;tapFlight.assisted=true;tapFlight.saved=false;tapFlight.status='playing';tapFlight.systems.shield=4;
-   state='tap';page='tap-flight';screen.innerHTML='';screen.className='';$('tapHud').hidden=false;resetInput();notify('🔑 AD REVIVE ACTIVATED!');tone(1100,.3);updateItemHud();
-  }else{
-   run.rescueUsed=true;run.assisted=true;run.saved=false;run.fuel=Math.max(35,run.fuel);run.shield=4;ship=pilot();obstacles.clear();pickups.clear();particles.clear();
-   state='playing';page='flight';screen.innerHTML='';screen.className='';$('hud').hidden=false;$('arrows').hidden=settings.mode!=='arrows';resetInput();records=records.map(r=>r.id===run.id?{...r,assisted:true}:r);persistProfile();notify('🔑 AD REVIVE ACTIVATED!');tone(1100,.3);updateItemHud();
-  }
- }
+    gfx.generateTexture('flare', 8, 8);
+    gfx.destroy();
 }
 
-function updateFlightReadout(){
- const tap=activeMode==='tap',s=tap?tapFlight.systems:systems,value=tap?tapFlight.score:run?.distance||0;
- const pending=trial?0:tap?(tapFlight.saved?0:tapFlight.coins):Math.max(0,(run?.coins||0)+(run?.reward||0)-(run?.paidCoins||0));
- const balance=wallet+pending,choices=ROCKETS.slice(0,8).filter(r=>!unlocked.includes(r.id)),target=choices.find(r=>progress.requirements(r).every(q=>q.done))||choices[0];
- $('flightProgress').hidden=!['playing','tap','tapready','launch'].includes(state);
- $('flightProgress').style.opacity=tap&&tapFlight.ship.y>640?'.12':'1';
- $('flightCraft').textContent=trial?`TRIAL · ${s.craft.name}`:s.craft.name;$('flightCraft').style.color=shipPaint(s.craft.id);
- $('flightRegion').textContent=target?`NEXT ROCKET · ${target.name}`:'COLLECTION COMPLETE';
- const remaining=target?Math.max(0,target.price-balance):0,gate=target?progress.requirements(target).find(q=>!q.done):null;
- $('nextMilestone').textContent=trial?'TRIAL · NO COINS BANKED':!target?`◉ ${balance.toLocaleString()} IN YOUR WALLET`:remaining?`◉ ${remaining.toLocaleString()} MORE TO UNLOCK · ${balance.toLocaleString()} / ${target.price.toLocaleString()}`:gate?`COINS READY · ${gate.label}`:pending?'COINS READY · FINISH RUN TO UNLOCK':'READY TO UNLOCK IN HANGAR';
- $('journeyFill').style.width=target?`${clamp(balance/target.price*100,0,100)}%`:'100%';
- const stars=tap?tapFlight.stars:run?.stars||0;
- $(tap?'tapFlightStatus':'flightStatus').textContent=`✦ ${stars}   ${(tap?s.shield:run?.shield)>0?'SHIELD '+Math.ceil(tap?s.shield:run.shield)+'s':s.armor?'◇ '+s.armor+' HULL':'◇ NO ARMOUR'}`;
- if(!tap)$('fuelValue').textContent=`${Math.ceil(run?.fuel||0)}%`;
+function createMountainTexture(scene) {
+    const gfx = scene.add.graphics();
+
+    // Rock/Mountain texture
+    gfx.fillStyle(0x4a5568, 1);
+
+    // Draw a jagged mountain shape
+    gfx.beginPath();
+    gfx.moveTo(0, 400);
+    gfx.lineTo(0, 0); // Top left (base)
+    // Jagged edge on the "danger" side
+    for (let i = 0; i <= 400; i += 40) {
+        gfx.lineTo(60 + Phaser.Math.Between(-10, 10), i);
+    }
+    gfx.lineTo(0, 400); // Bottom left
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Highlights
+    gfx.lineStyle(2, 0x718096, 0.5);
+    gfx.strokePath();
+
+    gfx.generateTexture('mountain', 70, 400);
+    gfx.destroy();
 }
 
-function detonateMine(x,y){for(let i=0;i<24;i++){const a=i*Math.PI*2/24;emit(x,y,Math.cos(a)*110,Math.sin(a)*110,.7,i%2?'#ffad64':'#ff5669',2);}tone(110,.22,'sawtooth',.04);}
+function createGiantMarsTexture(scene) {
+    const gfx = scene.add.graphics();
+    const size = 600;
+
+    // Base Mars Sphere (Huge)
+    gfx.fillStyle(0xc0392b, 1);
+    gfx.fillCircle(size / 2, size / 2, size / 2);
+
+    // Surface details (Craters/Canyons)
+    gfx.fillStyle(0xa93226, 1); // Darker red
+    gfx.fillCircle(size * 0.3, size * 0.3, size * 0.1);
+    gfx.fillCircle(size * 0.7, size * 0.6, size * 0.15);
+
+    // "Polar Ice" or lighter patch
+    gfx.fillStyle(0xe67e22, 0.8);
+    gfx.fillCircle(size * 0.5, size * 0.1, size * 0.1);
+
+    gfx.generateTexture('giant_mars', size, size);
+    gfx.destroy();
+}
+
+function createGiantMoonTexture(scene) {
+    const gfx = scene.add.graphics();
+    const size = 600;
+
+    // Base Moon Sphere
+    gfx.fillStyle(0x95a5a6, 1);
+    gfx.fillCircle(size / 2, size / 2, size / 2);
+
+    // Craters
+    gfx.fillStyle(0x7f8c8d, 1);
+    gfx.fillCircle(size * 0.2, size * 0.4, size * 0.08);
+    gfx.fillCircle(size * 0.8, size * 0.2, size * 0.12);
+    gfx.fillCircle(size * 0.5, size * 0.8, size * 0.1);
+
+    gfx.generateTexture('giant_moon', size, size);
+    gfx.destroy();
+}
+
+function createPlanetTexture(scene) {
+    const gfx = scene.add.graphics();
+
+    // Planet body
+    const color = Phaser.Math.RND.pick([0xff6b6b, 0x4ecdc4, 0xffe66d, 0x6b46c1]);
+    gfx.fillStyle(color, 1);
+    gfx.fillCircle(100, 100, 100);
+
+    // Craters
+    gfx.fillStyle(0x000000, 0.2);
+    gfx.fillCircle(60, 60, 20);
+    gfx.fillCircle(140, 120, 30);
+    gfx.fillCircle(50, 150, 15);
+
+    // Atmosphere glow
+    gfx.lineStyle(4, 0xffffff, 0.2);
+    gfx.strokeCircle(100, 100, 100);
+
+    gfx.generateTexture('planet', 200, 200);
+    gfx.destroy();
+}
+
+function createAsteroidTexture(scene) {
+    const gfx = scene.add.graphics();
+
+    // Jagged Rock shape
+    gfx.fillStyle(0x888888, 1);
+    gfx.beginPath();
+    gfx.moveTo(20, 0);
+    gfx.lineTo(40, 10);
+    gfx.lineTo(50, 30);
+    gfx.lineTo(40, 50);
+    gfx.lineTo(20, 55);
+    gfx.lineTo(0, 40);
+    gfx.lineTo(-10, 20);
+    gfx.lineTo(0, 0);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Craters
+    gfx.fillStyle(0x666666, 1);
+    gfx.fillCircle(15, 15, 5);
+    gfx.fillCircle(35, 35, 8);
+    gfx.fillCircle(25, 45, 4);
+
+    gfx.generateTexture('asteroid', 60, 60);
+    gfx.destroy();
+}
+
+function createUFOTexture(scene) {
+    const gfx = scene.add.graphics();
+
+    // Dome
+    gfx.fillStyle(0x00ffff, 0.8);
+    gfx.fillEllipse(25, 15, 15, 10);
+
+    // Body (Saucer)
+    gfx.fillStyle(0x999999, 1);
+    gfx.fillEllipse(25, 25, 25, 8);
+
+    // Lights
+    gfx.fillStyle(0xff0000, 1);
+    gfx.fillCircle(10, 25, 2);
+    gfx.fillCircle(40, 25, 2);
+    gfx.fillCircle(25, 28, 2);
+
+    gfx.generateTexture('ufo', 50, 40);
+    gfx.destroy();
+}
+
+function createStarItemTexture(scene) {
+    const gfx = scene.add.graphics();
+
+    // Gold Star
+    gfx.fillStyle(0xffd700, 1);
+    const points = 5;
+    const outerRadius = 15;
+    const innerRadius = 7;
+    let angle = -Math.PI / 2;
+    const step = Math.PI / points;
+
+    gfx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+        const r = (i % 2 === 0) ? outerRadius : innerRadius;
+        gfx.lineTo(20 + Math.cos(angle) * r, 20 + Math.sin(angle) * r);
+        angle += step;
+    }
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Shine
+    gfx.fillStyle(0xffffff, 0.8);
+    gfx.fillCircle(15, 15, 3);
+
+    gfx.generateTexture('starItem', 40, 40);
+    gfx.destroy();
+}
+
+function createCoinTexture(scene) {
+    const gfx = scene.add.graphics();
+    gfx.fillStyle(0xffb800, 1);
+    gfx.fillCircle(14, 14, 12);
+    gfx.fillStyle(0xffe680, 1);
+    gfx.fillCircle(14, 14, 9);
+    gfx.fillStyle(0xffb800, 1);
+    gfx.fillRect(11, 7, 6, 14);
+    gfx.generateTexture('coin', 28, 28);
+    gfx.destroy();
+}
+
+function createCrystalTexture(scene) {
+    const gfx = scene.add.graphics();
+    // diamond-shaped time crystal
+    gfx.fillStyle(0x4dd0ff, 0.85);
+    gfx.beginPath();
+    gfx.moveTo(18, 0);
+    gfx.lineTo(36, 22);
+    gfx.lineTo(18, 44);
+    gfx.lineTo(0, 22);
+    gfx.closePath();
+    gfx.fillPath();
+    gfx.fillStyle(0xb8f0ff, 0.95);
+    gfx.beginPath();
+    gfx.moveTo(18, 6);
+    gfx.lineTo(28, 22);
+    gfx.lineTo(18, 38);
+    gfx.lineTo(8, 22);
+    gfx.closePath();
+    gfx.fillPath();
+    gfx.fillStyle(0xffffff, 0.9);
+    gfx.fillCircle(18, 16, 3);
+    gfx.generateTexture('crystal', 36, 44);
+    gfx.destroy();
+}
+
+function createMagnetTexture(scene) {
+    const gfx = scene.add.graphics();
+    // horseshoe magnet
+    gfx.fillStyle(0xff2e4d, 1);
+    gfx.fillRect(4, 4, 10, 24);
+    gfx.fillRect(22, 4, 10, 24);
+    gfx.fillStyle(0xffffff, 1);
+    gfx.fillRect(4, 24, 10, 6);
+    gfx.fillRect(22, 24, 10, 6);
+    gfx.fillStyle(0xff2e4d, 1);
+    gfx.fillRect(4, 4, 28, 6);
+    gfx.lineStyle(2, 0x000000, 0.6);
+    gfx.strokeRect(4, 4, 10, 26);
+    gfx.strokeRect(22, 4, 10, 26);
+    gfx.generateTexture('magnet', 36, 34);
+    gfx.destroy();
+}
+
+// ====================================
+// CREATE - Setup Game Scene
+// ====================================
+
+function createSpaceBackground(scene) {
+    // Gradient background — stored globally so zones can redraw it
+    bgGraphics = scene.add.graphics();
+    const zone = ZONES[gameState.currentZone];
+    bgGraphics.fillGradientStyle(zone.bgTop, zone.bgTop, zone.bgBot, zone.bgBot, 1);
+    bgGraphics.fillRect(0, 0, scene.scale.width, scene.scale.height);
+    bgGraphics.setScrollFactor(0);
+    bgGraphics.setDepth(-100);
+
+    // Star layers (parallax)
+    for (let layer = 0; layer < 3; layer++) {
+        const count = 30 + layer * 20;
+        const speed = 0.2 + layer * 0.3;
+        const size = 1 + layer * 0.5;
+
+        for (let i = 0; i < count; i++) {
+            const star = scene.add.circle(
+                Phaser.Math.Between(0, scene.scale.width + 50),
+                Phaser.Math.Between(0, scene.scale.height),
+                Phaser.Math.FloatBetween(size * 0.5, size),
+                COLORS.STAR,
+                Phaser.Math.FloatBetween(0.3, 0.8)
+            );
+            star.setDepth(-50 + layer);
+            star.scrollSpeed = speed;
+            gameState.stars.push(star);
+
+            // Twinkle animation
+            scene.tweens.add({
+                targets: star,
+                alpha: 0.2,
+                duration: Phaser.Math.Between(1000, 3000),
+                yoyo: true,
+                repeat: -1,
+                delay: Phaser.Math.Between(0, 2000)
+            });
+        }
+    }
+
+    // Distant nebula
+    const nebula = scene.add.ellipse(600, 300, 300, 200, zone.nebulaColor, 0.1);
+    nebula.setDepth(-80);
+    gameState.stars.push({ ...nebula, scrollSpeed: 0.05 });
+
+    // Periodic shooting star
+    scene.time.addEvent({
+        delay: 3000,
+        loop: true,
+        callback: () => {
+            if (gameState.isPaused) return;
+            const y0 = Phaser.Math.Between(20, scene.scale.height * 0.6);
+            const line = scene.add.graphics();
+            line.lineStyle(2, 0xffffff, 0.85);
+            line.setDepth(-40);
+            const len = Phaser.Math.Between(40, 80);
+            line.beginPath();
+            line.moveTo(0, 0);
+            line.lineTo(len, -len * 0.3);
+            line.strokePath();
+            line.x = scene.scale.width + 50;
+            line.y = y0;
+            scene.tweens.add({
+                targets: line,
+                x: -100,
+                y: y0 + 80,
+                alpha: 0,
+                duration: Phaser.Math.Between(700, 1100),
+                ease: 'Quad.easeIn',
+                onComplete: () => line.destroy()
+            });
+        }
+    });
+}
+
+function create() {
+    // Create space background
+    createSpaceBackground(this);
+
+    // Create Biome Textures
+    createGiantMarsTexture(this);
+    createGiantMoonTexture(this);
+
+    // Create obstacle group
+    gameState.obstacles = this.physics.add.group();
+    gameState.flyingObstacles = this.physics.add.group();
+    gameState.ufos = this.physics.add.group();
+    gameState.starItems = this.physics.add.group();
+    gameState.blackHoles = this.physics.add.group();
+    gameState.crystals = this.physics.add.group();
+    gameState.coins = this.physics.add.group();
+    gameState.magnets = this.physics.add.group();
+
+    // Create rocket
+    createRocket(this);
+
+    // COLLISION DETECTION
+    this.physics.add.overlap(gameState.rocket, gameState.obstacles, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.flyingObstacles, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.ufos, onCollision, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.starItems, collectStar, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.crystals, collectCrystal, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.coins, collectCoin, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.magnets, collectMagnet, null, this);
+    this.physics.add.overlap(gameState.rocket, gameState.blackHoles, (rocket, hole) => {
+        onCollision(rocket, hole);
+    }, null, this);
+
+    // Create UI
+    createUI(this);
+
+    // Listen for resize to reposition centering text
+    this.scale.on('resize', () => {
+        if (badgeText) badgeText.x = this.scale.width / 2;
+        if (meteorText) {
+            meteorText.x = this.scale.width / 2;
+            meteorText.setFontSize(Math.min(40, this.scale.width * 0.08));
+        }
+    });
+
+    // Input handling
+    this.input.on('pointerdown', thrust);
+    this.input.keyboard.on('keydown-SPACE', thrust);
+
+    function createRocket(scene, y = 300) {
+        // Rocket sprite (uses active skin)
+        const skin = SKINS.find(s => s.id === gameState.currentSkin) || SKINS[0];
+        const texKey = skin.id === 'classic' ? 'rocket' : `rocket_${skin.id}`;
+        gameState.rocket = scene.physics.add.sprite(150, y, texKey);
+        gameState.rocket.setDepth(10);
+        gameState.rocket.body.setSize(25, 20);
+
+        gameState.rocket.body.setOffset(5, 7);
+        gameState.rocket.setMaxVelocity(GAME.MAX_VELOCITY, GAME.MAX_VELOCITY);
+
+        // Disable gravity until game starts
+        gameState.rocket.body.allowGravity = false;
+
+        // Particle Emitter for Exhaust
+        gameState.exhaust = scene.add.particles(0, 0, 'flare', {
+            speed: { min: 100, max: 200 },
+            angle: { min: 170, max: 190 },
+            scale: { start: 1, end: 0 },
+            alpha: { start: 1, end: 0 },
+            tint: [0x00d2ff, 0x0077ff, 0x0000ff],
+            lifespan: 300,
+            blendMode: 'ADD',
+            frequency: 10,
+            quantity: 2,
+            follow: gameState.rocket,
+            followOffset: { x: -25, y: 7 }
+        });
+
+        gameState.exhaust.setDepth(9);
+
+        // Shield Effect
+        shieldEffect = scene.add.ellipse(0, 0, 60, 60, 0x00ffff, 0.3);
+        shieldEffect.setStrokeStyle(2, 0x00ffff, 0.8);
+        shieldEffect.setVisible(false);
+        shieldEffect.setDepth(11);
+
+        // Magnet aura ring
+        magnetRing = scene.add.circle(0, 0, GAME.MAGNET_RADIUS, 0xff2e4d, 0.06);
+        magnetRing.setStrokeStyle(2, 0xff2e4d, 0.5);
+        magnetRing.setVisible(false);
+        magnetRing.setDepth(9);
+    }
+
+    function createUI(scene) {
+        const centerX = scene.scale.width / 2;
+        const mobileScale = Math.min(1, scene.scale.width / 800);
+
+        // Score
+        scoreText = scene.add.text(20, 20, 'SCORE: 0', {
+            fontSize: (28 * mobileScale) + 'px',
+            fontFamily: 'Courier New',
+            fontWeight: 'bold',
+            color: '#00ffff',
+            stroke: '#000000',
+            strokeThickness: 3
+        });
+        scoreText.setDepth(100);
+        scoreText.setScrollFactor(0);
+
+        // High score
+        highScoreText = scene.add.text(20, 55, 'BEST: ' + gameState.highScore, {
+            fontSize: (16 * mobileScale) + 'px',
+            fontFamily: 'Courier New',
+            color: '#888888'
+        });
+        highScoreText.setDepth(100);
+        highScoreText.setScrollFactor(0);
+
+        // Star Count
+        starText = scene.add.text(20, 80, 'STARS: 0/3', {
+            fontSize: (18 * mobileScale) + 'px',
+            fontFamily: 'Courier New',
+            color: '#ffd700',
+            fontWeight: 'bold'
+        });
+        starText.setDepth(100);
+
+        // Badge Notification
+        badgeText = scene.add.text(centerX, 150, '', {
+            fontSize: Math.min(32, scene.scale.width * 0.06) + 'px',
+            fontFamily: 'Impact',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center'
+        });
+        badgeText.setOrigin(0.5);
+        badgeText.setDepth(200);
+        badgeText.setAlpha(0);
+
+        // Meteor Warning
+        meteorText = scene.add.text(centerX, 300, 'METEOR SHOWER DETECTED!', {
+            fontSize: Math.min(40, scene.scale.width * 0.08) + 'px',
+            fontFamily: 'Impact',
+            color: '#ff0000',
+            stroke: '#ffffff',
+            strokeThickness: 5,
+            align: 'center'
+        });
+        meteorText.setOrigin(0.5);
+        meteorText.setDepth(200);
+        meteorText.setVisible(false);
+
+        // Zone Banner
+        zoneBannerText = scene.add.text(centerX, scene.scale.height / 2 - 60, '', {
+            fontSize: Math.min(36, scene.scale.width * 0.065) + 'px',
+            fontFamily: 'Impact',
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 5,
+            align: 'center'
+        });
+        zoneBannerText.setOrigin(0.5);
+        zoneBannerText.setDepth(250);
+        zoneBannerText.setAlpha(0);
+
+        // --- Combo meter (top-center) ---
+        comboText = scene.add.text(centerX, 30, '', {
+            fontSize: Math.min(34, scene.scale.width * 0.06) + 'px',
+            fontFamily: 'Impact',
+            color: '#ffdd59',
+            stroke: '#000000',
+            strokeThickness: 4,
+            align: 'center'
+        });
+        comboText.setOrigin(0.5, 0);
+        comboText.setDepth(120);
+        comboText.setAlpha(0);
+        comboText.setScrollFactor(0);
+
+        comboBarBg = scene.add.rectangle(centerX, 70, 180, 6, 0x222222, 0.7);
+        comboBarBg.setDepth(119).setScrollFactor(0).setVisible(false);
+        comboBarFill = scene.add.rectangle(centerX - 90, 70, 180, 6, 0xffdd59, 1);
+        comboBarFill.setOrigin(0, 0.5);
+        comboBarFill.setDepth(120).setScrollFactor(0).setVisible(false);
+
+        // --- Power-up timer bars (top-right, stacked under the pause/mute) ---
+        const barX = scene.scale.width - 170;
+        const barW = 150;
+        shieldBarBg = scene.add.rectangle(barX, 115, barW, 8, 0x222222, 0.7);
+        shieldBarBg.setOrigin(0, 0.5).setDepth(100).setScrollFactor(0).setVisible(false);
+        shieldBarFill = scene.add.rectangle(barX, 115, barW, 8, 0x00ffff, 1);
+        shieldBarFill.setOrigin(0, 0.5).setDepth(101).setScrollFactor(0).setVisible(false);
+
+        slowMoBarBg = scene.add.rectangle(barX, 135, barW, 8, 0x222222, 0.7);
+        slowMoBarBg.setOrigin(0, 0.5).setDepth(100).setScrollFactor(0).setVisible(false);
+        slowMoBarFill = scene.add.rectangle(barX, 135, barW, 8, 0x4dd0ff, 1);
+        slowMoBarFill.setOrigin(0, 0.5).setDepth(101).setScrollFactor(0).setVisible(false);
+
+        magnetBarBg = scene.add.rectangle(barX, 155, barW, 8, 0x222222, 0.7);
+        magnetBarBg.setOrigin(0, 0.5).setDepth(100).setScrollFactor(0).setVisible(false);
+        magnetBarFill = scene.add.rectangle(barX, 155, barW, 8, 0xff2e4d, 1);
+        magnetBarFill.setOrigin(0, 0.5).setDepth(101).setScrollFactor(0).setVisible(false);
+
+        // --- Zone progress bar (bottom-center) ---
+        const progW = Math.min(360, scene.scale.width * 0.6);
+        const progY = scene.scale.height - 22;
+        zoneProgressBg = scene.add.rectangle(centerX, progY, progW, 6, 0x222222, 0.6);
+        zoneProgressBg.setDepth(100).setScrollFactor(0);
+        zoneProgressFill = scene.add.rectangle(centerX - progW / 2, progY, 0, 6, 0x00d4ff, 1);
+        zoneProgressFill.setOrigin(0, 0.5).setDepth(101).setScrollFactor(0);
+
+        zoneProgressLabel = scene.add.text(centerX, progY - 16, 'DEEP SPACE', {
+            fontSize: '11px',
+            fontFamily: 'Courier New',
+            color: '#8899aa',
+            align: 'center'
+        });
+        zoneProgressLabel.setOrigin(0.5).setDepth(101).setScrollFactor(0);
+
+        // --- Coin counter (under stars) ---
+        coinText = scene.add.text(20, 105, 'COINS: 0', {
+            fontSize: (16 * mobileScale) + 'px',
+            fontFamily: 'Courier New',
+            color: '#ffb800',
+            fontWeight: 'bold'
+        });
+        coinText.setDepth(100).setScrollFactor(0);
+    }
+}
+
+// ====================================
+// ZONE SYSTEM
+// ====================================
+function checkZone(score) {
+    // Find the highest zone whose minScore we've reached
+    let newZone = 0;
+    for (let i = ZONES.length - 1; i >= 0; i--) {
+        if (score >= ZONES[i].minScore) { newZone = i; break; }
+    }
+    if (newZone !== gameState.currentZone) {
+        gameState.currentZone = newZone;
+        transitionToZone(newZone);
+    }
+}
+
+function transitionToZone(index) {
+    const zone = ZONES[index];
+
+    // 1. Flash + redraw background
+    sceneRef.cameras.main.flash(300, 255, 255, 255, false);
+    if (bgGraphics) {
+        bgGraphics.clear();
+        bgGraphics.fillGradientStyle(zone.bgTop, zone.bgTop, zone.bgBot, zone.bgBot, 1);
+        bgGraphics.fillRect(0, 0, sceneRef.scale.width, sceneRef.scale.height);
+    }
+
+    // 2. Zone name banner — fly in and fade out
+    if (zoneBannerText) {
+        zoneBannerText.setText(zone.label);
+        zoneBannerText.setAlpha(1);
+        zoneBannerText.setScale(1.4);
+        zoneBannerText.y = sceneRef.scale.height / 2 - 60;
+        sceneRef.tweens.add({
+            targets: zoneBannerText,
+            alpha: 0,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 2500,
+            ease: 'Power2'
+        });
+    }
+
+    // 3. Adjust asteroid + UFO timers
+    if (gameState.asteroidTimer) {
+        gameState.asteroidTimer.remove();
+        gameState.asteroidTimer = sceneRef.time.addEvent({
+            delay: zone.asteroidRate,
+            callback: spawnFlyingAsteroid,
+            loop: true
+        });
+    }
+    if (gameState.ufoTimer) {
+        gameState.ufoTimer.remove();
+        gameState.ufoTimer = sceneRef.time.addEvent({
+            delay: zone.ufoRate,
+            callback: spawnUFO,
+            loop: true
+        });
+    }
+
+    // 4. Shift ambient audio
+    AudioEngine.shiftAmbient(index);
+}
+
+// ====================================
+// UPDATE - Game Loop
+// ====================================
+function update() {
+    if (!gameState.isPlaying || gameState.isGameOver || gameState.isPaused) return;
+
+    const now = Date.now();
+
+    // Time-scale lerp (for slow-mo)
+    gameState.timeScaleCurrent += (gameState.timeScaleTarget - gameState.timeScaleCurrent) * 0.08;
+
+    // Combo decay check
+    if (gameState.combo > 0 && now - gameState.lastScoreTime > GAME.COMBO_TIMEOUT) {
+        resetCombo();
+    }
+
+    // Shield Logic
+    if (gameState.hasShield) {
+        shieldEffect.setVisible(true);
+        shieldEffect.setPosition(gameState.rocket.x, gameState.rocket.y);
+
+        const remaining = gameState.shieldEndTime - now;
+        if (remaining <= 0) {
+            deactivateShield();
+        } else if (remaining < 1500) {
+            shieldEffect.setVisible(Math.floor(now / 100) % 2 === 0);
+        }
+    } else {
+        shieldEffect.setVisible(false);
+    }
+
+    // Slow-mo Logic
+    if (gameState.slowMoActive) {
+        if (now >= gameState.slowMoEndTime) {
+            deactivateSlowMo();
+        }
+    }
+
+    // Magnet Logic
+    if (gameState.magnetActive) {
+        magnetRing.setVisible(true);
+        magnetRing.setPosition(gameState.rocket.x, gameState.rocket.y);
+        magnetRing.rotation += 0.02;
+        if (now >= gameState.magnetEndTime) {
+            deactivateMagnet();
+        } else {
+            // Attract pickups within radius
+            [gameState.starItems, gameState.coins, gameState.crystals].forEach(group => {
+                group.getChildren().forEach(pickup => {
+                    const dx = gameState.rocket.x - pickup.x;
+                    const dy = gameState.rocket.y - pickup.y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < GAME.MAGNET_RADIUS) {
+                        pickup.x += (dx / d) * 6;
+                        pickup.y += (dy / d) * 6;
+                    }
+                });
+            });
+        }
+    } else {
+        magnetRing.setVisible(false);
+    }
+
+    updateHUDBars();
+
+    // Rocket Rotation
+    const velocityY = gameState.rocket.body.velocity.y;
+    gameState.rocket.angle = Phaser.Math.Clamp(velocityY * 0.1, -30, 45);
+
+    // Check boundaries
+    if (gameState.isPlaying && !gameState.isGameOver) {
+        if (gameState.rocket.y < -40 || gameState.rocket.y >= 760) {
+            gameOver();
+        }
+    }
+
+    const ts = gameState.timeScaleCurrent;
+
+    // Scroll stars
+    gameState.stars.forEach(star => {
+        if (star.scrollSpeed) {
+            star.x -= gameState.obstacleSpeed * star.scrollSpeed * 0.016 * ts;
+            if (star.x < -100) {
+                star.x = 900;
+            }
+        }
+    });
+
+    gameState.lastSpawnX -= gameState.obstacleSpeed * 0.016 * ts;
+
+    // Apply time-scale to every physics group with velocity
+    applyTimeScaleToGroups(ts);
+
+    // Check obstacle passing + near-miss detection
+    gameState.obstacles.getChildren().forEach(obstacle => {
+        if (!obstacle.scored && obstacle.x < gameState.rocket.x - 30) {
+            if (obstacle.isTop) {
+                // Near-miss if rocket came close vertically
+                const dy = Math.abs(obstacle.y - gameState.rocket.y);
+                const wasNear = obstacle.closestDy !== undefined && obstacle.closestDy < GAME.NEAR_MISS_THRESHOLD * 2;
+                if (wasNear && obstacle.closestDy > 15) {
+                    registerNearMiss();
+                }
+                addScore(GAME.POINTS_PER_PASS);
+            }
+            obstacle.scored = true;
+        } else if (!obstacle.scored && obstacle.x > gameState.rocket.x - 30 && obstacle.x < gameState.rocket.x + 60) {
+            const dy = Math.abs(obstacle.y - gameState.rocket.y);
+            if (obstacle.closestDy === undefined || dy < obstacle.closestDy) {
+                obstacle.closestDy = dy;
+            }
+        }
+        if (obstacle.x < -100) {
+            obstacle.destroy();
+        }
+    });
+
+    // Update flying asteroids
+    gameState.flyingObstacles.getChildren().forEach(asteroid => {
+        asteroid.rotation += 0.02 * ts;
+        if (!asteroid.scored && asteroid.x < gameState.rocket.x - 30) {
+            addScore(GAME.POINTS_PER_PASS);
+            asteroid.scored = true;
+        }
+        if (asteroid.x < -100) {
+            asteroid.destroy();
+        }
+    });
+
+    // Update UFOs
+    gameState.ufos.getChildren().forEach(ufo => {
+        if (ufo.isDummy) {
+            ufo.x -= gameState.obstacleSpeed * 2.5 * 0.016 * ts;
+        } else {
+            ufo.x -= gameState.obstacleSpeed * 1.2 * 0.016 * ts;
+            ufo.sineOffset += 0.05 * ts;
+            ufo.y = ufo.startY + Math.sin(ufo.sineOffset) * 100;
+        }
+        if (ufo.x < -100) ufo.destroy();
+    });
+
+    // Remove stars, coins, crystals, magnets that scroll off
+    [gameState.starItems, gameState.coins, gameState.crystals, gameState.magnets].forEach(group => {
+        if (!group) return;
+        group.getChildren().forEach(item => {
+            if (item.x < -100) item.destroy();
+        });
+    });
+
+    // Update Black Holes
+    gameState.blackHoles.getChildren().forEach(hole => {
+        hole.x -= gameState.obstacleSpeed * 0.016 * ts;
+        hole.rotation -= 0.05 * ts;
+
+        if (Math.random() > 0.5) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Phaser.Math.Between(30, 60);
+            const p = sceneRef.add.circle(hole.x + Math.cos(angle) * dist, hole.y + Math.sin(angle) * dist, 2, 0x8b5cf6, 1);
+            sceneRef.tweens.add({
+                targets: p,
+                x: hole.x,
+                y: hole.y,
+                alpha: 0,
+                duration: 400,
+                onComplete: () => p.destroy()
+            });
+        }
+
+        hole.setVelocityX(-gameState.obstacleSpeed * 0.8 * ts);
+
+        const dx = hole.x - gameState.rocket.x;
+        const dy = hole.y - gameState.rocket.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 350) {
+            const force = (350 - dist) * 0.08;
+            const angle = Math.atan2(dy, dx);
+            gameState.rocket.body.velocity.y += Math.sin(angle) * force;
+
+            // Audio: proximity rumble, throttled to avoid spam
+            const now = Date.now();
+            if (!hole._lastRumble || now - hole._lastRumble > 300) {
+                const intensity = Math.min(1, (350 - dist) / 350);
+                AudioEngine.blackHoleRumble(intensity);
+                hole._lastRumble = now;
+            }
+        }
+
+        if (dist < 25) {
+            gameOver();
+        }
+
+        if (hole.x < -100) {
+            hole.destroy();
+            scheduleNextBlackHole();
+        }
+    });
+}
+
+// ====================================
+// GAME ACTIONS
+// ====================================
+function thrust() {
+    if (gameState.isGameOver) return;
+    if (!gameState.isPlaying) {
+        startGame();
+        return;
+    }
+    AudioEngine.thrust();
+    AudioEngine.engineRev();
+    gameState.rocket.setVelocityY(GAME.THRUST_POWER);
+    if (gameState.exhaust) {
+        gameState.exhaust.emitParticle(5);
+    }
+    createThrustParticles();
+}
+
+function createThrustParticles() {
+    for (let i = 0; i < 3; i++) {
+        const particle = sceneRef.add.circle(
+            gameState.rocket.x - 25,
+            gameState.rocket.y + Phaser.Math.Between(-5, 5),
+            Phaser.Math.Between(2, 4),
+            COLORS.FLAME_OUTER,
+            0.8
+        );
+        particle.setDepth(8);
+        sceneRef.tweens.add({
+            targets: particle,
+            x: particle.x - 40,
+            alpha: 0,
+            scale: 0.3,
+            duration: 200,
+            onComplete: () => particle.destroy()
+        });
+    }
+}
+
+function startGame() {
+    gameState.isPlaying = true;
+    gameState.isGameOver = false;
+    gameState.isPaused = false;
+    gameState.score = 0;
+    gameState.sessionCoins = 0;
+    gameState.nearMisses = 0;
+    gameState.sessionStartTime = Date.now();
+
+    // Reset combo + power-up state
+    gameState.combo = 0;
+    gameState.comboMult = 1;
+    gameState.comboTier = -1;
+    gameState.slowMoActive = false;
+    gameState.magnetActive = false;
+    gameState.timeScaleTarget = 1;
+    gameState.timeScaleCurrent = 1;
+
+    if (coinText) coinText.setText('COINS: 0');
+    if (comboText) comboText.setAlpha(0);
+    if (comboBarBg) comboBarBg.setVisible(false);
+    if (comboBarFill) comboBarFill.setVisible(false);
+
+    const intensity = parseInt(localStorage.getItem('spaceRocketIntensity') || '25');
+    gameState.intensity = intensity;
+
+    gameState.obstacleSpeed = 100 + (intensity * 6);
+    gameState.spawnRate = 4000 - (intensity * 60);
+
+    gameState.collectedStars = 0;
+    gameState.hasShield = false;
+    gameState.isInvincible = false;
+    starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
+    starText.setColor('#ffd700');
+
+    gameState.rocket.body.allowGravity = true;
+    gameState.rocket.setVelocity(0, 0);
+
+    // Hide tutorial hint once the game actually starts
+    document.getElementById('tutorialHint')?.classList.add('hidden');
+
+    gameState.obstacleTimer = sceneRef.time.addEvent({
+        delay: gameState.spawnRate,
+        callback: spawnObstacle,
+        loop: true
+    });
+
+    gameState.asteroidTimer = sceneRef.time.addEvent({
+        delay: 800,
+        callback: spawnFlyingAsteroid,
+        loop: true
+    });
+
+    gameState.ufoTimer = sceneRef.time.addEvent({
+        delay: 8000,
+        callback: spawnUFO,
+        loop: true
+    });
+
+    scheduleNextBlackHole();
+
+    gameState.meteorTimer = sceneRef.time.addEvent({
+        delay: 20000,
+        callback: triggerMeteorShower,
+        loop: true
+    });
+
+    gameState.starTimer = sceneRef.time.addEvent({
+        delay: 2000,
+        callback: spawnStar,
+        loop: true
+    });
+
+    gameState.coinTimer = sceneRef.time.addEvent({
+        delay: 3500,
+        callback: spawnCoin,
+        loop: true
+    });
+
+    gameState.crystalTimer = sceneRef.time.addEvent({
+        delay: 14000,
+        callback: spawnCrystal,
+        loop: true
+    });
+
+    gameState.magnetTimer = sceneRef.time.addEvent({
+        delay: 22000,
+        callback: spawnMagnet,
+        loop: true
+    });
+
+    gameState.difficultyTimer = sceneRef.time.addEvent({
+        delay: 5000,
+        callback: increaseDifficulty,
+        loop: true
+    });
+
+    updateScoreDisplay();
+
+    AudioEngine.startAmbient();
+    AudioEngine.startEngineHum();
+
+    document.getElementById('homeMenu')?.classList.add('hidden');
+    document.getElementById('gameUI')?.classList.remove('hidden');
+}
+
+// ====================================
+// COLLISION HANDLERS
+// ====================================
+function onCollision(rocket, obstacle) {
+    if (gameState.isGameOver || gameState.isInvincible || obstacle.isDummy) return;
+
+    resetCombo();
+
+    if (gameState.hasShield) {
+        gameState.hasShield = false;
+        gameState.shieldEndTime = 0;
+        deactivateShield();
+        gameState.isInvincible = true;
+        AudioEngine.shieldHit();
+        sceneRef.tweens.add({
+            targets: gameState.rocket,
+            alpha: 0.5,
+            duration: 100,
+            yoyo: true,
+            repeat: 10,
+            onComplete: () => {
+                gameState.rocket.alpha = 1;
+                gameState.isInvincible = false;
+            }
+        });
+        gameState.rocket.setVelocityX(-200);
+        sceneRef.time.delayedCall(200, () => {
+            if (!gameState.isGameOver) gameState.rocket.setVelocityX(0);
+        });
+        sceneRef.cameras.main.shake(200, 0.01);
+        return;
+    }
+
+    gameOver();
+}
+
+function collectStar(rocket, star) {
+    const x = star.x, y = star.y;
+    star.destroy();
+    AudioEngine.starCollect();
+    gameState.combo += 1;
+    gameState.lastScoreTime = Date.now();
+    updateComboTier();
+    showFloatText(x, y, '⭐', '#ffd700', 22);
+
+    if (gameState.hasShield) return;
+    gameState.collectedStars++;
+    starText.setText(`STARS: ${gameState.collectedStars}/${GAME.STARS_FOR_SHIELD}`);
+    sceneRef.tweens.add({
+        targets: starText,
+        scale: { from: 1.5, to: 1 },
+        duration: 200
+    });
+    if (gameState.collectedStars >= GAME.STARS_FOR_SHIELD) {
+        activateShield();
+    }
+}
+
+function collectCoin(rocket, coin) {
+    const x = coin.x, y = coin.y;
+    coin.destroy();
+    AudioEngine.coinCollect();
+    gameState.sessionCoins++;
+    gameState.totalCoins++;
+    localStorage.setItem('spaceRocketCoins', gameState.totalCoins.toString());
+    if (coinText) coinText.setText(`COINS: ${gameState.sessionCoins}`);
+    showFloatText(x, y, '+1', '#ffb800', 16);
+}
+
+function collectCrystal(rocket, crystal) {
+    const x = crystal.x, y = crystal.y;
+    crystal.destroy();
+    activateSlowMo();
+    showFloatText(x, y, 'SLOW-MO!', '#4dd0ff', 22);
+    createShockwave(x, y, '#4dd0ff');
+}
+
+function collectMagnet(rocket, magnet) {
+    const x = magnet.x, y = magnet.y;
+    magnet.destroy();
+    activateMagnet();
+    showFloatText(x, y, 'MAGNET!', '#ff2e4d', 22);
+    createShockwave(x, y, '#ff2e4d');
+}
+
+function activateSlowMo() {
+    gameState.slowMoActive = true;
+    gameState.slowMoEndTime = Date.now() + GAME.SLOWMO_DURATION;
+    gameState.timeScaleTarget = 0.45;
+    AudioEngine.slowMoActivate();
+    sceneRef.cameras.main.flash(150, 80, 180, 255);
+}
+
+function deactivateSlowMo() {
+    gameState.slowMoActive = false;
+    gameState.timeScaleTarget = 1;
+    AudioEngine.slowMoEnd();
+}
+
+function activateMagnet() {
+    gameState.magnetActive = true;
+    gameState.magnetEndTime = Date.now() + GAME.MAGNET_DURATION;
+    AudioEngine.magnetActivate();
+    sceneRef.cameras.main.flash(150, 255, 50, 100);
+}
+
+function deactivateMagnet() {
+    gameState.magnetActive = false;
+    magnetRing.setVisible(false);
+}
+
+function activateShield() {
+    gameState.hasShield = true;
+    gameState.collectedStars = 0;
+    gameState.shieldEndTime = Date.now() + GAME.SHIELD_DURATION;
+    starText.setText('SHIELD ACTIVE!');
+    starText.setColor('#00ffff');
+    AudioEngine.shieldActivate();
+    sceneRef.cameras.main.flash(200, 0, 255, 255);
+}
+
+function deactivateShield() {
+    gameState.hasShield = false;
+    starText.setText('STARS: 0/' + GAME.STARS_FOR_SHIELD);
+    starText.setColor('#ffd700');
+}
+
+// ====================================
+// SPAWNING
+// ====================================
+function spawnObstacle() {
+    if (gameState.isGameOver || gameState.lastSpawnX > sceneRef.scale.width - 300) return;
+    gameState.lastSpawnX = sceneRef.scale.width + 100;
+    const type = Phaser.Math.Between(0, 100);
+    if (type > 40) {
+        spawnGiantCanyon();
+    } else {
+        spawnClassicPlanets();
+    }
+}
+
+function spawnClassicPlanets() {
+    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
+    const gapHeight = GAME.GAP_SIZE + Phaser.Math.Between(0, 50);
+    const spawnX = sceneRef.scale.width + 100;
+    const spawnBoth = Math.random() > 0.2;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const topPlanet = gameState.obstacles.create(spawnX + Phaser.Math.Between(-50, 50), gapY - 100, 'planet');
+        topPlanet.setScale(topScale);
+        topPlanet.body.setCircle(80 * topScale);
+        topPlanet.body.allowGravity = false;
+        topPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        topPlanet.body.setImmovable(true);
+        topPlanet.isTop = true;
+        topPlanet.scored = false;
+    }
+
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.6, 1.0);
+        const bottomPlanet = gameState.obstacles.create(spawnX + Phaser.Math.Between(-50, 50), gapY + gapHeight + 100, 'planet');
+        bottomPlanet.setScale(botScale);
+        bottomPlanet.body.setCircle(80 * botScale);
+        bottomPlanet.body.allowGravity = false;
+        bottomPlanet.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomPlanet.body.setImmovable(true);
+        bottomPlanet.scored = false;
+    }
+}
+
+function spawnGiantCanyon() {
+    const gapY = Phaser.Math.Between(GAME.MIN_GAP_Y, GAME.MAX_GAP_Y);
+    const gapHeight = GAME.GAP_SIZE + 100;
+    const spawnX = sceneRef.scale.width + 300;
+    const texture = Phaser.Math.RND.pick(['giant_mars', 'giant_moon']);
+    const spawnBoth = Math.random() > 0.3;
+    const spawnTop = spawnBoth || Math.random() > 0.5;
+    const spawnBot = spawnBoth || !spawnTop;
+
+    if (spawnTop) {
+        const topScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const topBody = gameState.obstacles.create(spawnX + Phaser.Math.Between(-100, 100), gapY - 350, texture);
+        topBody.setScale(topScale);
+        topBody.body.setCircle(240 * topScale);
+        topBody.body.allowGravity = false;
+        topBody.body.setVelocityX(-gameState.obstacleSpeed);
+        topBody.body.setImmovable(true);
+        topBody.isTop = true;
+        topBody.scored = false;
+    }
+
+    if (spawnBot) {
+        const botScale = Phaser.Math.FloatBetween(0.9, 1.2);
+        const bottomBody = gameState.obstacles.create(spawnX + Phaser.Math.Between(-100, 100), gapY + gapHeight + 350, texture);
+        bottomBody.setScale(botScale);
+        bottomBody.body.setCircle(240 * botScale);
+        bottomBody.body.allowGravity = false;
+        bottomBody.body.setVelocityX(-gameState.obstacleSpeed);
+        bottomBody.body.setImmovable(true);
+        bottomBody.scored = false;
+    }
+}
+
+function spawnFlyingAsteroid() {
+    if (gameState.isGameOver) return;
+    const asteroid = gameState.flyingObstacles.create(sceneRef.scale.width + 100, Phaser.Math.Between(50, sceneRef.scale.height - 50), 'asteroid');
+    asteroid.body.allowGravity = false;
+    asteroid.body.setVelocityX(-(gameState.obstacleSpeed * 1.5));
+    asteroid.setDepth(6);
+    asteroid.scored = false;
+}
+
+function spawnUFO() {
+    if (gameState.isGameOver || gameState.score < 2) return;
+    const ufo = gameState.ufos.create(sceneRef.scale.width + 100, Phaser.Math.Between(150, sceneRef.scale.height - 150), 'ufo');
+    ufo.isDummy = true;
+    ufo.setTint(0x888888);
+    ufo.body.allowGravity = false;
+    ufo.body.setVelocityX(-gameState.obstacleSpeed * 2.5);
+    ufo.setDepth(6);
+}
+
+function createBlackHoleTexture(scene) {
+    const gfx = scene.add.graphics();
+    gfx.fillStyle(0x000000, 1);
+    gfx.fillCircle(40, 40, 30);
+    gfx.lineStyle(4, 0x8b5cf6, 0.8);
+    gfx.strokeCircle(40, 40, 35);
+    gfx.lineStyle(2, 0xec4899, 0.6);
+    gfx.strokeCircle(40, 40, 38);
+    gfx.generateTexture('blackhole', 80, 80);
+    gfx.destroy();
+}
+
+function scheduleNextBlackHole() {
+    if (!gameState.isGameOver) sceneRef.time.delayedCall(Phaser.Math.Between(3000, 5000), spawnBlackHole);
+}
+
+function spawnBlackHole() {
+    if (gameState.isGameOver || gameState.score < 5 || gameState.blackHoles.getLength() > 0) {
+        if (!gameState.isGameOver) scheduleNextBlackHole();
+        return;
+    }
+    const hole = gameState.blackHoles.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'blackhole');
+    hole.setCircle(30, 10, 10);
+    hole.body.allowGravity = false;
+    hole.setDepth(5);
+}
+
+function spawnStar() {
+    if (gameState.isGameOver || Phaser.Math.Between(0, 100) > 30) return;
+    const star = gameState.starItems.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'starItem');
+    star.body.allowGravity = false;
+    star.body.setVelocityX(-gameState.obstacleSpeed);
+    star.setDepth(7);
+    sceneRef.tweens.add({ targets: star, angle: 360, duration: 2000, repeat: -1 });
+}
+
+function spawnCoin() {
+    if (gameState.isGameOver) return;
+    // spawn a cluster of 3–5 coins in an arc
+    const y = Phaser.Math.Between(100, sceneRef.scale.height - 100);
+    const count = Phaser.Math.Between(3, 5);
+    for (let i = 0; i < count; i++) {
+        const coin = gameState.coins.create(sceneRef.scale.width + 100 + i * 30, y + Math.sin(i * 0.6) * 40, 'coin');
+        coin.body.allowGravity = false;
+        coin.body.setVelocityX(-gameState.obstacleSpeed);
+        coin.setDepth(7);
+        sceneRef.tweens.add({ targets: coin, scale: { from: 0.85, to: 1.1 }, duration: 600, yoyo: true, repeat: -1 });
+    }
+}
+
+function spawnCrystal() {
+    if (gameState.isGameOver || gameState.score < 8) return;
+    const crystal = gameState.crystals.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'crystal');
+    crystal.body.allowGravity = false;
+    crystal.body.setVelocityX(-gameState.obstacleSpeed);
+    crystal.setDepth(7);
+    sceneRef.tweens.add({ targets: crystal, angle: 360, duration: 2500, repeat: -1 });
+    sceneRef.tweens.add({ targets: crystal, scale: { from: 0.9, to: 1.15 }, duration: 500, yoyo: true, repeat: -1 });
+}
+
+function spawnMagnet() {
+    if (gameState.isGameOver || gameState.score < 15) return;
+    const magnet = gameState.magnets.create(sceneRef.scale.width + 100, Phaser.Math.Between(100, sceneRef.scale.height - 100), 'magnet');
+    magnet.body.allowGravity = false;
+    magnet.body.setVelocityX(-gameState.obstacleSpeed);
+    magnet.setDepth(7);
+    sceneRef.tweens.add({ targets: magnet, y: magnet.y - 20, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+}
+
+// ====================================
+// DIFFICULTY & SCORING
+// ====================================
+function increaseDifficulty() {
+    if (gameState.isGameOver) return;
+    let multiplier = gameState.score < 20 ? 0.5 : 1.0 + (gameState.unlockedBadges.length * 0.2);
+    gameState.obstacleSpeed += GAME.SPEED_INCREASE * multiplier;
+    gameState.obstacles.getChildren().forEach(o => o.body.setVelocityX(-gameState.obstacleSpeed));
+
+    if (gameState.spawnRate > GAME.MIN_SPAWN_RATE) {
+        gameState.spawnRate -= GAME.SPAWN_DECREASE * multiplier;
+        gameState.obstacleTimer.remove();
+        gameState.obstacleTimer = sceneRef.time.addEvent({
+            delay: gameState.spawnRate,
+            callback: spawnObstacle,
+            loop: true
+        });
+    }
+}
+
+function addScore(points) {
+    // Bump combo and compute multiplier
+    gameState.combo += 1;
+    gameState.lastScoreTime = Date.now();
+    updateComboTier();
+
+    const gained = points * gameState.comboMult;
+    gameState.score += gained;
+
+    if (gameState.comboMult > 1) {
+        showFloatText(gameState.rocket.x + 40, gameState.rocket.y - 20, `+${gained}`, '#ffdd59');
+    }
+
+    updateScoreDisplay();
+    checkZone(gameState.score);
+    sceneRef.tweens.add({ targets: scoreText, scaleX: 1.2, scaleY: 1.2, duration: 100, yoyo: true });
+    if (gameState.score > 0 && gameState.score % 5 === 0) increaseDifficulty();
+}
+
+function registerNearMiss() {
+    gameState.nearMisses++;
+    gameState.combo += 1;
+    gameState.lastScoreTime = Date.now();
+    updateComboTier();
+    const bonus = GAME.NEAR_MISS_BONUS * gameState.comboMult;
+    gameState.score += bonus;
+    showFloatText(gameState.rocket.x + 30, gameState.rocket.y + 20, `NEAR MISS +${bonus}`, '#ff66aa');
+    AudioEngine.nearMiss();
+    updateScoreDisplay();
+    sceneRef.cameras.main.shake(80, 0.003);
+}
+
+function updateComboTier() {
+    let tierIdx = -1;
+    let mult = 1;
+    let tierLabel = '';
+    let tierColor = '#ffdd59';
+    for (let i = GAME.COMBO_TIERS.length - 1; i >= 0; i--) {
+        if (gameState.combo >= GAME.COMBO_TIERS[i].count) {
+            tierIdx = i;
+            mult = GAME.COMBO_TIERS[i].mult;
+            tierLabel = GAME.COMBO_TIERS[i].label;
+            tierColor = GAME.COMBO_TIERS[i].color;
+            break;
+        }
+    }
+    gameState.comboMult = mult;
+
+    if (gameState.combo > gameState.maxCombo) {
+        gameState.maxCombo = gameState.combo;
+    }
+
+    if (tierIdx > gameState.comboTier && tierIdx >= 0) {
+        gameState.comboTier = tierIdx;
+        AudioEngine.comboTick(tierIdx + 1);
+        createShockwave(gameState.rocket.x, gameState.rocket.y, tierColor);
+        showFloatText(sceneRef.scale.width / 2, 90, tierLabel, tierColor, 34);
+    }
+
+    if (gameState.combo >= 3) {
+        comboText.setText(`x${mult}  ·  ${gameState.combo} STREAK`);
+        comboText.setColor(tierColor);
+        comboText.setAlpha(1);
+        comboBarBg.setVisible(true);
+        comboBarFill.setVisible(true);
+    } else {
+        comboText.setAlpha(0);
+        comboBarBg.setVisible(false);
+        comboBarFill.setVisible(false);
+    }
+}
+
+function resetCombo() {
+    if (gameState.combo >= 5) {
+        showFloatText(sceneRef.scale.width / 2, 120, 'COMBO LOST', '#888', 18);
+    }
+    gameState.combo = 0;
+    gameState.comboMult = 1;
+    gameState.comboTier = -1;
+    comboText.setAlpha(0);
+    comboBarBg.setVisible(false);
+    comboBarFill.setVisible(false);
+}
+
+function updateScoreDisplay() {
+    scoreText.setText('SCORE: ' + gameState.score);
+    if (gameState.score > gameState.highScore) {
+        gameState.highScore = gameState.score;
+        highScoreText.setText('BEST: ' + gameState.highScore);
+        highScoreText.setColor('#00ff88');
+    }
+    const badge = BADGES.find(b => b.score === gameState.score);
+    if (badge && !gameState.unlockedBadges.find(ub => ub.name === badge.name)) {
+        gameState.unlockedBadges.push(badge);
+        localStorage.setItem('spaceRocketBadges', JSON.stringify(gameState.unlockedBadges));
+        showBadge(badge);
+        updateHomeBadges();
+    }
+}
+
+function updateHomeBadges() {
+    const container = document.getElementById('badgeContainer');
+    if (!container) return;
+    container.innerHTML = BADGES.map(b => {
+        const isUnlocked = gameState.unlockedBadges.find(ub => ub.name === b.name);
+        return isUnlocked ?
+            `<div class="badge-item"><span class="badge-icon">${b.icon}</span><div>${b.name}</div></div>` :
+            `<div class="badge-item locked" style="opacity: 0.5; filter: grayscale(1);"><span class="badge-icon">🔒</span><div>${b.name}</div><div style="font-size: 10px; color: #888;">Score: ${b.score}</div></div>`;
+    }).join('');
+}
+
+function showBadge(badge) {
+    badgeText.setText(`${badge.icon}\n${badge.name}\nUNLOCKED!`);
+    badgeText.setAlpha(1);
+    AudioEngine.badgeUnlock();
+    sceneRef.tweens.add({ targets: badgeText, y: 100, alpha: 0, duration: 3000, ease: 'Power2' });
+}
+
+// ====================================
+// GAME OVER & RESET
+// ====================================
+function gameOver() {
+    gameState.isGameOver = true;
+    gameState.isPlaying = false;
+    gameState.sessionDurationMs = Date.now() - gameState.sessionStartTime;
+
+    if (gameState.obstacleTimer) gameState.obstacleTimer.remove();
+    if (gameState.asteroidTimer) gameState.asteroidTimer.remove();
+    if (gameState.starTimer) gameState.starTimer.remove();
+    if (gameState.coinTimer) gameState.coinTimer.remove();
+    if (gameState.crystalTimer) gameState.crystalTimer.remove();
+    if (gameState.magnetTimer) gameState.magnetTimer.remove();
+    if (gameState.difficultyTimer) gameState.difficultyTimer.remove();
+    if (gameState.ufoTimer) gameState.ufoTimer.remove();
+    if (gameState.meteorTimer) gameState.meteorTimer.remove();
+
+    gameState.rocket.setVelocity(0, 0);
+    gameState.rocket.body.allowGravity = false;
+    AudioEngine.stopEngineHum();
+    AudioEngine.stopAmbient();
+    AudioEngine.explosion();
+    createExplosion();
+
+    // Persist meta stats
+    gameState.gamesPlayed++;
+    gameState.totalTimeMs = (gameState.totalTimeMs || 0) + gameState.sessionDurationMs;
+    if (gameState.combo > gameState.maxCombo) gameState.maxCombo = gameState.combo;
+    localStorage.setItem('spaceRocketHighScore', gameState.highScore.toString());
+    localStorage.setItem('spaceRocketGames', gameState.gamesPlayed.toString());
+    localStorage.setItem('spaceRocketMaxCombo', gameState.maxCombo.toString());
+    localStorage.setItem('spaceRocketTotalTime', gameState.totalTimeMs.toString());
+
+    // Unlock skins based on this session's score
+    unlockSkinsForScore(gameState.score);
+
+    sceneRef.cameras.main.shake(300, 0.02);
+    sceneRef.cameras.main.flash(200, 255, 100, 100);
+
+    if (typeof window.showGameOver === 'function') {
+        window.showGameOver(gameState.score, gameState.highScore, {
+            zone: ZONES[gameState.currentZone]?.label || 'DEEP SPACE',
+            maxCombo: gameState.maxCombo,
+            coinsCollected: gameState.sessionCoins,
+            nearMisses: gameState.nearMisses,
+            durationMs: gameState.sessionDurationMs,
+            totalCoins: gameState.totalCoins
+        });
+    }
+    if (typeof updateHomeStats === 'function') updateHomeStats();
+}
+
+function unlockSkinsForScore(score) {
+    let unlockedNew = null;
+    SKINS.forEach(s => {
+        if (s.score > 0 && score >= s.score && !gameState.unlockedSkins.includes(s.id)) {
+            gameState.unlockedSkins.push(s.id);
+            unlockedNew = s;
+        }
+    });
+    if (unlockedNew) {
+        localStorage.setItem('spaceRocketSkins', JSON.stringify(gameState.unlockedSkins));
+        if (typeof updateSkinSelector === 'function') updateSkinSelector();
+    }
+    return unlockedNew;
+}
+
+function createExplosion() {
+    const { x, y } = gameState.rocket;
+    gameState.rocket.setVisible(false);
+    if (gameState.exhaust) gameState.exhaust.setVisible(false);
+    for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const color = Phaser.Math.RND.pick([0xff6600, 0xffff00, 0xff3366, 0xffffff]);
+        const p = sceneRef.add.circle(x, y, Phaser.Math.Between(3, 8), color, 1);
+        p.setDepth(50);
+        sceneRef.tweens.add({
+            targets: p,
+            x: x + Math.cos(angle) * Phaser.Math.Between(50, 150),
+            y: y + Math.sin(angle) * Phaser.Math.Between(50, 150),
+            alpha: 0, scale: 0.2, duration: 500, ease: 'Power2',
+            onComplete: () => p.destroy()
+        });
+    }
+}
+
+function restartGame(scene) {
+    AudioEngine.stopEngineHum();
+    AudioEngine.stopAmbient();
+
+    gameState.isGameOver = false;
+    gameState.isPlaying = false;
+    gameState.isPaused = false;
+    gameState.score = 0;
+    gameState.obstacleSpeed = GAME.OBSTACLE_SPEED;
+    gameState.spawnRate = GAME.OBSTACLE_SPAWN_RATE;
+    gameState.collectedStars = 0;
+    gameState.hasShield = false;
+    gameState.isInvincible = false;
+    gameState.currentZone = 0;
+
+    // Reset combo + power-ups
+    gameState.combo = 0;
+    gameState.comboMult = 1;
+    gameState.comboTier = -1;
+    gameState.slowMoActive = false;
+    gameState.magnetActive = false;
+    gameState.timeScaleTarget = 1;
+    gameState.timeScaleCurrent = 1;
+    gameState.sessionCoins = 0;
+
+    // Reset background to Zone 1
+    if (bgGraphics) {
+        const zone0 = ZONES[0];
+        bgGraphics.clear();
+        bgGraphics.fillGradientStyle(zone0.bgTop, zone0.bgTop, zone0.bgBot, zone0.bgBot, 1);
+        bgGraphics.fillRect(0, 0, sceneRef.scale.width, sceneRef.scale.height);
+    }
+    if (zoneBannerText) zoneBannerText.setAlpha(0);
+
+    gameState.obstacles.clear(true, true);
+    gameState.flyingObstacles.clear(true, true);
+    gameState.ufos.clear(true, true);
+    gameState.starItems.clear(true, true);
+    gameState.blackHoles.clear(true, true);
+    if (gameState.coins) gameState.coins.clear(true, true);
+    if (gameState.crystals) gameState.crystals.clear(true, true);
+    if (gameState.magnets) gameState.magnets.clear(true, true);
+
+    // Swap rocket texture if the player switched skin
+    const skin = SKINS.find(s => s.id === gameState.currentSkin) || SKINS[0];
+    const texKey = skin.id === 'classic' ? 'rocket' : `rocket_${skin.id}`;
+    if (gameState.rocket.texture.key !== texKey) gameState.rocket.setTexture(texKey);
+
+    gameState.rocket.setPosition(150, 300).setVelocity(0, 0).setAngle(0).setVisible(true);
+    gameState.rocket.alpha = 1;
+    gameState.rocket.body.allowGravity = false;
+    if (gameState.exhaust) gameState.exhaust.setVisible(true);
+
+    updateScoreDisplay();
+    highScoreText.setColor('#888888');
+    starText.setText('STARS: 0/3').setColor('#ffd700');
+    badgeText.setAlpha(0);
+    if (comboText) comboText.setAlpha(0);
+    if (comboBarBg) comboBarBg.setVisible(false);
+    if (comboBarFill) comboBarFill.setVisible(false);
+    if (shieldBarBg) shieldBarBg.setVisible(false);
+    if (shieldBarFill) shieldBarFill.setVisible(false);
+    if (slowMoBarBg) slowMoBarBg.setVisible(false);
+    if (slowMoBarFill) slowMoBarFill.setVisible(false);
+    if (magnetBarBg) magnetBarBg.setVisible(false);
+    if (magnetBarFill) magnetBarFill.setVisible(false);
+    if (coinText) coinText.setText('COINS: 0');
+    if (magnetRing) magnetRing.setVisible(false);
+    if (typeof meteorText !== 'undefined') meteorText.setVisible(false);
+
+    document.getElementById('gameOverOverlay')?.classList.add('hidden');
+    document.getElementById('winScreen')?.classList.add('hidden');
+}
+
+function triggerMeteorShower() {
+    if (gameState.isGameOver || gameState.score < 10) return;
+    AudioEngine.meteorWarning();
+    if (typeof meteorText !== 'undefined') {
+        meteorText.setVisible(true).setAlpha(1);
+        sceneRef.tweens.add({ targets: meteorText, alpha: 0, duration: 200, yoyo: true, repeat: 5, onComplete: () => meteorText.setVisible(false) });
+    }
+    for (let i = 0; i < 15; i++) sceneRef.time.delayedCall(i * 200 + 1000, spawnMeteor);
+}
+
+function spawnMeteor() {
+    if (gameState.isGameOver) return;
+    const meteor = gameState.flyingObstacles.create(900, Phaser.Math.Between(0, 600), 'asteroid');
+    meteor.setScale(0.7).body.allowGravity = false;
+    const angle = Phaser.Math.Between(160, 200) * (Math.PI / 180);
+    meteor.body.setVelocity(Math.cos(angle) * gameState.obstacleSpeed * 2.5);
+    meteor.setDepth(6);
+    meteor.scored = false;
+}
+
+// ====================================
+// HELPERS — float text, shockwave, HUD bars, pause/resume, time scale
+// ====================================
+function showFloatText(x, y, text, color = '#ffffff', size = 24) {
+    if (!sceneRef) return;
+    const t = sceneRef.add.text(x, y, text, {
+        fontSize: size + 'px',
+        fontFamily: 'Impact',
+        color: color,
+        stroke: '#000',
+        strokeThickness: 3
+    });
+    t.setOrigin(0.5);
+    t.setDepth(300);
+    sceneRef.tweens.add({
+        targets: t,
+        y: y - 60,
+        alpha: 0,
+        scale: 1.2,
+        duration: 900,
+        ease: 'Cubic.easeOut',
+        onComplete: () => t.destroy()
+    });
+}
+
+function createShockwave(x, y, colorHex = '#ffffff') {
+    if (!sceneRef) return;
+    const tint = Phaser.Display.Color.HexStringToColor(colorHex).color;
+    const ring = sceneRef.add.circle(x, y, 10, tint, 0);
+    ring.setStrokeStyle(3, tint, 1);
+    ring.setDepth(280);
+    sceneRef.tweens.add({
+        targets: ring,
+        radius: 120,
+        alpha: 0,
+        scale: 3,
+        duration: 550,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy()
+    });
+}
+
+function applyTimeScaleToGroups(ts) {
+    const base = gameState.obstacleSpeed;
+    gameState.obstacles.getChildren().forEach(o => o.body && o.body.setVelocityX(-base * ts));
+    gameState.flyingObstacles.getChildren().forEach(o => {
+        if (o.body && o._baseVx === undefined) o._baseVx = o.body.velocity.x;
+        if (o.body && o._baseVx) o.body.setVelocityX(o._baseVx * ts);
+    });
+    gameState.starItems.getChildren().forEach(o => o.body && o.body.setVelocityX(-base * ts));
+    if (gameState.coins) gameState.coins.getChildren().forEach(o => o.body && o.body.setVelocityX(-base * ts));
+    if (gameState.crystals) gameState.crystals.getChildren().forEach(o => o.body && o.body.setVelocityX(-base * ts));
+    if (gameState.magnets) gameState.magnets.getChildren().forEach(o => o.body && o.body.setVelocityX(-base * ts));
+}
+
+function updateHUDBars() {
+    const now = Date.now();
+
+    // Shield bar
+    if (gameState.hasShield) {
+        const rem = Math.max(0, gameState.shieldEndTime - now);
+        const pct = rem / GAME.SHIELD_DURATION;
+        shieldBarBg.setVisible(true);
+        shieldBarFill.setVisible(true);
+        shieldBarFill.width = 150 * pct;
+    } else {
+        shieldBarBg.setVisible(false);
+        shieldBarFill.setVisible(false);
+    }
+
+    // Slow-mo bar
+    if (gameState.slowMoActive) {
+        const rem = Math.max(0, gameState.slowMoEndTime - now);
+        const pct = rem / GAME.SLOWMO_DURATION;
+        slowMoBarBg.setVisible(true);
+        slowMoBarFill.setVisible(true);
+        slowMoBarFill.width = 150 * pct;
+    } else {
+        slowMoBarBg.setVisible(false);
+        slowMoBarFill.setVisible(false);
+    }
+
+    // Magnet bar
+    if (gameState.magnetActive) {
+        const rem = Math.max(0, gameState.magnetEndTime - now);
+        const pct = rem / GAME.MAGNET_DURATION;
+        magnetBarBg.setVisible(true);
+        magnetBarFill.setVisible(true);
+        magnetBarFill.width = 150 * pct;
+    } else {
+        magnetBarBg.setVisible(false);
+        magnetBarFill.setVisible(false);
+    }
+
+    // Combo bar — time remaining on current combo
+    if (gameState.combo >= 3) {
+        const rem = Math.max(0, GAME.COMBO_TIMEOUT - (now - gameState.lastScoreTime));
+        comboBarFill.width = 180 * (rem / GAME.COMBO_TIMEOUT);
+    }
+
+    // Zone progress
+    const curZoneIdx = gameState.currentZone;
+    const curMin = ZONES[curZoneIdx].minScore;
+    const nextMin = ZONES[curZoneIdx + 1]?.minScore ?? curMin + 100;
+    const range = Math.max(1, nextMin - curMin);
+    const pct = Math.min(1, (gameState.score - curMin) / range);
+    const maxW = Math.min(360, sceneRef.scale.width * 0.6);
+    zoneProgressFill.width = maxW * pct;
+    if (zoneProgressLabel) {
+        const next = ZONES[curZoneIdx + 1];
+        const cur = ZONES[curZoneIdx];
+        zoneProgressLabel.setText(next
+            ? `${cur.name}  →  ${next.name}  (${gameState.score}/${nextMin})`
+            : `${cur.name}  •  MAX ZONE`);
+    }
+}
+
+function pauseGame() {
+    if (!gameState.isPlaying || gameState.isGameOver) return;
+    gameState.isPaused = true;
+    sceneRef.physics.pause();
+    AudioEngine.stopEngineHum();
+    AudioEngine.stopAmbient();
+    document.getElementById('pauseOverlay')?.classList.remove('hidden');
+}
+
+function resumeGame() {
+    if (!gameState.isPaused) return;
+    gameState.isPaused = false;
+    sceneRef.physics.resume();
+    AudioEngine.startAmbient();
+    AudioEngine.startEngineHum();
+    document.getElementById('pauseOverlay')?.classList.add('hidden');
+}
+
+function updateHomeStats() {
+    const el = document.getElementById('homeStats');
+    if (!el) return;
+    const totalMin = Math.floor((gameState.totalTimeMs || 0) / 60000);
+    el.innerHTML = `
+        <div class="stat-item"><div class="stat-val">${gameState.highScore}</div><div class="stat-lbl">BEST</div></div>
+        <div class="stat-item"><div class="stat-val">${gameState.gamesPlayed || 0}</div><div class="stat-lbl">RUNS</div></div>
+        <div class="stat-item"><div class="stat-val">${gameState.maxCombo || 0}</div><div class="stat-lbl">MAX COMBO</div></div>
+        <div class="stat-item"><div class="stat-val">🪙 ${gameState.totalCoins || 0}</div><div class="stat-lbl">COINS</div></div>
+        <div class="stat-item"><div class="stat-val">${totalMin}m</div><div class="stat-lbl">FLIGHT TIME</div></div>
+    `;
+}
+
+function updateSkinSelector() {
+    const el = document.getElementById('skinSelector');
+    if (!el) return;
+    el.innerHTML = SKINS.map(s => {
+        const unlocked = gameState.unlockedSkins.includes(s.id);
+        const active = gameState.currentSkin === s.id;
+        const locked = !unlocked;
+        return `<div class="skin-chip ${active ? 'active' : ''} ${locked ? 'locked' : ''}" data-skin="${s.id}"
+            style="--accent: #${s.accent.toString(16).padStart(6, '0')}">
+            <div class="skin-swatch"></div>
+            <div class="skin-name">${s.name}</div>
+            <div class="skin-req">${locked ? `🔒 Score ${s.score}` : (active ? 'EQUIPPED' : 'TAP TO EQUIP')}</div>
+        </div>`;
+    }).join('');
+    el.querySelectorAll('.skin-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const id = chip.getAttribute('data-skin');
+            if (!gameState.unlockedSkins.includes(id)) return;
+            gameState.currentSkin = id;
+            localStorage.setItem('spaceRocketActiveSkin', id);
+            updateSkinSelector();
+            // Swap in-scene texture immediately
+            if (gameState.rocket && sceneRef) {
+                const texKey = id === 'classic' ? 'rocket' : `rocket_${id}`;
+                gameState.rocket.setTexture(texKey);
+            }
+            AudioEngine.uiPing();
+        });
+    });
+}
+
+// Expose to HTML
+window.pauseGame = pauseGame;
+window.resumeGame = resumeGame;
+window.updateHomeStats = updateHomeStats;
+window.updateSkinSelector = updateSkinSelector;
+
+const game = new Phaser.Game(config);
