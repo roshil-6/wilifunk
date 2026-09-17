@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#040914"><meta name="description" content="Pilot a tiny spacecraft into a vast, increasingly dangerous universe.">
+<title>SPACEHULL — Go further</title><link rel="stylesheet" href="style.css">
+</head>
+<body><main id="app" aria-label="SPACEHULL game">
+<canvas id="universe" width="390" height="780" aria-label="Space flight. Explore: steer left and right. Tap and Fun: tap or press Space to rise."></canvas>
+<div id="hud" hidden><div class="fuel"><span>FUEL</span><div class="fuel-track"><i id="fuelFill"></i></div></div><div class="telemetry"><strong class="gold">◉ <span id="coins">0</span></strong><small id="danger">01 / CALM</small></div><button id="pause" aria-label="Pause game">Ⅱ</button><div class="distance"><span id="distance">0</span><small>METERS FROM HOME</small></div></div>
+<div id="tapHud" hidden><div class="tap-score"><small>SCORE</small><strong id="tapScore">0</strong><span id="tapBest">BEST 0</span></div><strong class="tap-coins">◉ <span id="tapCoins">0</span></strong><button id="tapPause" aria-label="Pause Tap and Fun">Ⅱ</button></div>
+<div id="toast" role="status"></div><div id="steerHint"></div>
+<div id="arrows" hidden><button data-direction="-1" aria-label="Steer left">〈 <span>LEFT</span></button><button data-direction="1" aria-label="Steer right"><span>RIGHT</span> 〉</button></div>
+<section id="screen"></section><div id="storageNotice" role="status" hidden>Storage unavailable · progress lasts this session</div>
+</main><script type="module" src="game.js"></script></body></html>
