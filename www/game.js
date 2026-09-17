@@ -485,9 +485,11 @@ function updateFlightReadout(){
  $('flightProgress').hidden=!['playing','tap','tapready','launch'].includes(state);
  $('flightProgress').style.opacity=tap&&tapFlight.ship.y>640?'.12':'1';
  $('flightCraft').textContent=trial?`TRIAL · ${s.craft.name}`:s.craft.name;$('flightCraft').style.color=shipPaint(s.craft.id);
- $('flightRegion').textContent=target?`NEXT ROCKET · ${target.name}`:'COLLECTION COMPLETE';
+ $('flightRegion').textContent=target?`NEXT CRAFT · ${target.name}`:'COLLECTION COMPLETE';
  const remaining=target?Math.max(0,target.price-balance):0,gate=target?progress.requirements(target).find(q=>!q.done):null;
- $('nextMilestone').textContent=trial?'TRIAL · NO COINS BANKED':!target?`◉ ${balance.toLocaleString()} IN YOUR WALLET`:remaining?`◉ ${remaining.toLocaleString()} MORE TO UNLOCK · ${balance.toLocaleString()} / ${target.price.toLocaleString()}`:gate?`COINS READY · ${gate.label}`:pending?'COINS READY · FINISH RUN TO UNLOCK':'READY TO UNLOCK IN HANGAR';
+ 
+ const noteText=trial?'TEST FLIGHT · NO REWARDS BANKED':!target?`◉ ${balance.toLocaleString()} IN WALLET`:remaining?`<span style="color:#fbbf24;font-weight:700">◉ ${remaining.toLocaleString()} NEEDED</span> · ${balance.toLocaleString()} / ${target.price.toLocaleString()}`:gate?`<span style="color:#38bdf8;font-weight:700">COINS READY</span> · ${gate.label}`:pending?'<span style="color:#34d399;font-weight:700">COINS READY</span> · FINISH RUN':'READY IN HANGAR';
+ $('nextMilestone').innerHTML=noteText;
  $('journeyFill').style.width=target?`${clamp(balance/target.price*100,0,100)}%`:'100%';
  const stars=tap?tapFlight.stars:run?.stars||0;
  $(tap?'tapFlightStatus':'flightStatus').textContent=`✦ ${stars}   ${(tap?s.shield:run?.shield)>0?'SHIELD '+Math.ceil(tap?s.shield:run.shield)+'s':s.armor?'◇ '+s.armor+' HULL':'◇ NO ARMOUR'}`;
