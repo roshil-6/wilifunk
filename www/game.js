@@ -1,11 +1,13 @@
-import { hangarUI, rocketListUI, mapUI, missionsUI, cosmeticsUI, storeUI } from './progression-ui.js?v=store-fix-5';
-import { expedition, pacing, eventFor, nearMiss, decayCombo } from './expedition.js?v=store-fix-5';
-import { ROCKETS, EXPLORE_BADGES, BALANCE, REGIONS, EVENTS, EXPLORE_MILESTONES, TAP_MILESTONES, COSMETICS, MISSIONS, STORE_ITEMS } from './config.js?v=store-fix-5';
-import { createSystems, tickSystems, takeImpact, activateSystem, attractCoin, rocketById } from './rocket-systems.js?v=store-fix-5';
-import { ProgressStore, Analytics, RewardedAds } from './progression.js?v=store-fix-5';
-import { TapFlight } from './tap-flight.js?v=store-fix-5';
-import { createTapRenderer, drawSideRocket, drawMine, drawSystemAura } from './tap-renderer.js?v=store-fix-5';
-import { WIDTH as W, HEIGHT as H, clamp, pilot, steer, sweptDistance, Pool, ZONES, zoneAt } from './flight.js?v=store-fix-5';
+import {BlastView} from './block-blast-ui.js?v=four-games-1';
+import {SalvageView} from './salvage-ui.js?v=four-games-1';
+import { hangarUI, rocketListUI, mapUI, missionsUI, cosmeticsUI, storeUI } from './progression-ui.js?v=four-games-1';
+import { expedition, pacing, eventFor, nearMiss, decayCombo } from './expedition.js?v=four-games-1';
+import { ROCKETS, EXPLORE_BADGES, BALANCE, REGIONS, EVENTS, EXPLORE_MILESTONES, TAP_MILESTONES, COSMETICS, MISSIONS, STORE_ITEMS } from './config.js?v=four-games-1';
+import { createSystems, tickSystems, takeImpact, activateSystem, attractCoin, rocketById } from './rocket-systems.js?v=four-games-1';
+import { ProgressStore, Analytics, RewardedAds } from './progression.js?v=four-games-1';
+import { TapFlight } from './tap-flight.js?v=four-games-1';
+import { createTapRenderer, drawSideRocket, drawMine, drawSystemAura } from './tap-renderer.js?v=four-games-1';
+import { WIDTH as W, HEIGHT as H, clamp, pilot, steer, sweptDistance, Pool, ZONES, zoneAt } from './flight.js?v=four-games-1';
 const $ = id => document.getElementById(id), canvas = $('universe'), ctx = canvas.getContext('2d', { alpha: false });
 const screen = $('screen'), app = $('app');
 const menuArt = typeof Image !== 'undefined' ? new Image() : null;
@@ -81,7 +83,7 @@ function show(name) {
   if(trial){selected=trial.previous;trial=null;}
   state = 'home'; ship = pilot(); zone = 0; particles.clear();
   screen.className = 'open-home';
-  screen.innerHTML = `<div class="home-utility"><button class="quiet" data-action="space-map" aria-label="Space Map">◎</button><span class="home-wallet">◉ ${wallet}</span><button class="quiet" data-action="store" aria-label="Store" style="font-size:18px">🛒</button><button class="quiet" data-action="settings" aria-label="Settings">⚙</button></div><div class="home-heading"><h1>SPACEHULL</h1><p>EXPLORE. SURVIVE. GO FURTHER.</p></div><nav class="home-nav"><div class="flight-choices">${button('<span class="play-glyph">▶</span><span><strong>EXPLORE</strong><small>Dodge. Survive. Go further.</small></span>','play-explore','flight-choice')}${button('<span class="play-glyph">✦</span><span><strong>TAP &amp; FUN</strong><small>Tap. Fly. Find your rhythm.</small></span>','play-tap','flight-choice')}</div><div class="home-dock">${button(rocketMark()+'<span>ROCKETS</span>','rockets')}${button('<span class="dock-glyph" aria-hidden="true">🛒</span><span>STORE</span>','store')}${button('<span class="dock-glyph" aria-hidden="true">▥</span><span>LEADERBOARDS</span>','leaderboard')}${button('<span class="dock-glyph" aria-hidden="true">✧</span><span>MISSIONS</span>','missions')}</div></nav><footer class="cinema-footer">A SMALL ROCKET. A LARGER UNIVERSE.</footer>`;
+  screen.innerHTML = `<div class="home-utility"><button class="quiet" data-action="space-map" aria-label="Space Map">◎</button><span class="home-wallet">◉ ${wallet}</span><button class="quiet" data-action="store" aria-label="Store" style="font-size:18px">🛒</button><button class="quiet" data-action="settings" aria-label="Settings">⚙</button></div><div class="home-heading"><h1>SPACEHULL</h1><p>EXPLORE. SURVIVE. GO FURTHER.</p></div><nav class="home-nav four-activities"><div class="activity-list">${button('<span class="activity-art explore-art"><svg viewBox="0 0 32 32" width="28" height="28"><path d="M16 3L5 26h6l5-6 5 6h6L16 3z" fill="#ffffff"/></svg></span><span><strong>EXPLORE</strong><small>Dodge. Survive. Go further.</small></span><b>›</b>','play-explore','activity-card')}${button('<span class="activity-art tap-art"><svg viewBox="0 0 32 32" width="28" height="28"><path d="M12 7l12 9-12 9V7z" fill="#ffffff"/></svg></span><span><strong>TAP &amp; FUN</strong><small>Tap. Fly. Have fun.</small></span><b>›</b>','play-tap','activity-card')}${button('<span class="activity-art salvage-art">▦</span><span><strong>SALVAGE GRID</strong><small>Get rewards for SPACEHULL</small><em>300–400 coins · parts · cosmetics</em></span><b>›</b>','salvage','activity-card reward-card')}${button('<span class="activity-art blast-art">◇</span><span><strong>BLOCK BLAST</strong><small>Get rewards for SPACEHULL</small><em>200–300 coins · Copper rocket paint</em></span><b>›</b>','block-blast','activity-card reward-card')}<div class="reward-charge-note">${progress.data.salvageCharges} / 3 shared reward charges · 1 per new puzzle</div></div><div class="home-dock">${button(rocketMark()+'<span>ROCKETS</span>','rockets')}${button('<span class="dock-glyph" aria-hidden="true">🛒</span><span>STORE</span>','store')}${button('<span class="dock-glyph" aria-hidden="true">▥</span><span>LEADERBOARDS</span>','leaderboard')}${button('<span class="dock-glyph" aria-hidden="true">✧</span><span>MISSIONS</span>','missions')}</div></nav><footer class="cinema-footer">A SMALL ROCKET. A LARGER UNIVERSE.</footer>`;
  } else if (name === 'settings') {
   screen.innerHTML = `${header('SETTINGS')}<div class="page-content">${['sound','music','vibration'].map(k => `<div class="settings-row"><span>${k[0].toUpperCase()+k.slice(1)}</span><button class="toggle ${settings[k]?'on':''}" role="switch" aria-label="${k}" aria-checked="${settings[k]}" data-action="toggle-${k}"><i></i></button></div>`).join('')}<div class="settings-row"><span>Explore controls</span><button class="quiet" data-action="controls">${modeName()} &nbsp; ›</button></div><div class="settings-row"><span>Tap &amp; Fun controls</span><button class="quiet" data-action="tap-help">Tap &nbsp; ›</button></div><p class="small-note">Move. Dodge. Explore.<br>Forward thrust is automatic. You control the flight path.</p><div class="settings-row"><span>Graphics</span><button class="quiet" data-action="graphics">${settings.graphics||'AUTO'} ›</button></div><div class="settings-row"><span>Progress</span><button class="quiet" data-action="reset-confirm">Reset progress ›</button></div><div class="missions"><div class="eyebrow">EXPLORE MISSIONS / EVERY RUN</div><div class="mission-row"><span>Collect 5 stars</span><span>+25 ◉</span></div><div class="mission-row"><span>Make 3 near misses</span><span>+30 ◉</span></div><div class="mission-row"><span>Travel 1,000 meters</span><span>+40 ◉</span></div><p class="small-note">Every 3 stars activates a temporary shield.<br>Collect cyan fuel cells to extend your journey.</p></div></div>`;
  } else if (name === 'controls') {
@@ -178,9 +180,31 @@ function showTapResult(crashed) {
   screen.className='overlay-dim tap-result open-result '+(crashed?'impact-result':'complete-result');
   screen.innerHTML=`<div class="crash-title"><h2 ${crashed?'':'style="color:#e3edff;font-size:21px"'}>${crashed?'CRASHED':'RUN COMPLETE'}</h2><p>${crashed?'KEEP TRYING':'NICE FLIGHT!'}</p></div><div class="summary"><div class="summary-panel"><div class="scores"><div><small>SCORE</small><strong>${tapFlight.score}</strong></div><div><small>BEST</small><strong>${tapBest}</strong></div></div><dl class="stats"><dt>◉ &nbsp; Coins Collected</dt><dd>${tapFlight.coins}</dd><dt>✦ &nbsp; Stars Collected</dt><dd>${tapFlight.stars}</dd><dt>◇ &nbsp; Obstacles Passed</dt><dd>${tapFlight.obstaclesPassed}</dd><dt>◎ &nbsp; Perfect Passes</dt><dd>${tapFlight.perfects}</dd></dl></div><div class="summary-actions">${button(crashed?'↻ &nbsp; TRY AGAIN':'↻ &nbsp; PLAY AGAIN','play','primary')}${button('MAIN MENU','home')}${adActions()}${rewardQueue.length?button('NEW REWARDS','view-rewards'):''}<div class="result-links">${crashed?'<button class="quiet" data-action="tap-summary">FLIGHT SUMMARY</button>':''}<button class="quiet" data-action="share">↗ SHARE</button></div></div></div>`;
 }
+let salvageView=null,salvageRunId=null;
+function openSalvage(){
+ show('home');state='salvage';page='salvage';resetInput();
+ salvageView?.destroy();salvageView=new SalvageView(screen,{
+ data:()=>progress.data,
+ start:()=>{const p=progress.startSalvage();salvageRunId=progress.data.salvageRun?.id;pullProfile();return p;},
+ save:p=>progress.saveSalvage(p,salvageRunId),restart:()=>progress.restartSalvage(),
+ claim:()=>{const r=progress.claimSalvage(salvageRunId);pullProfile();persistProfile();return r;},reward:score=>progress.salvageCoins(score),
+ tutorialSeen:()=>progress.data.salvageTutorial,seen:()=>{progress.data.salvageTutorial=true;progress.commit();},
+ setting:k=>settings[k],toggle:k=>{settings[k]=!settings[k];persistProfile();},
+ feedback:lines=>{unlockAudio();tone(lines?420:160,lines?.18:.06,'triangle');if(settings.vibration&&navigator.vibrate)navigator.vibrate(lines?18:7);},
+ adsAvailable:()=>ads.available,ad:async kind=>{const id=salvageRunId;if(!await ads.request(`${id}:${kind}`,`salvage-${kind}`))return false;const ok=kind==='recover'?progress.recoverSalvage(id):progress.doubleSalvage(id);pullProfile();persistProfile();return ok;},
+ home:()=>{salvageView.destroy();salvageView=null;pullProfile();persistProfile();show('home');}
+ });
+}
+let blastView=null,blastRunId=null;
+function openBlast(){show('home');state='blast';page='blast';resetInput();blastView?.destroy();blastView=new BlastView(screen,{
+ data:()=>progress.data,start:()=>{const p=progress.startBlast();blastRunId=progress.data.blastRun?.id;pullProfile();return p;},
+ save:p=>progress.saveBlast(p,blastRunId),reward:score=>progress.blastCoins(score),claim:()=>{const r=progress.claimBlast(blastRunId);pullProfile();persistProfile();return r;},
+ seen:()=>{progress.data.blastTutorial=true;progress.commit();},feedback:chain=>{unlockAudio();tone(320+chain*80,.12,'triangle');if(settings.vibration&&navigator.vibrate)navigator.vibrate(12);},
+ home:()=>{blastView.destroy();blastView=null;pullProfile();persistProfile();show('home');}
+});}
 screen.addEventListener('click', async e => {
  const b = e.target.closest('[data-action]'); if (!b) return; unlockAudio(); tone(380,.045); const a=b.dataset.action;
- if(handleMetaAction(a))return;
+ if(a==='salvage'){openSalvage();return;}if(handleMetaAction(a))return;
  if (a==='play') start();
  else if (a==='play-explore') { activeMode='explore'; boardMode='explore';analytics.track('mode_selected',{mode:activeMode});start(); }
  else if (a==='play-tap') { activeMode='tap'; boardMode='tap';analytics.track('mode_selected',{mode:activeMode});if (!read('spacehullTapTutorialSeen',false)) show('tap-tutorial'); else start(); }
@@ -403,6 +427,8 @@ function showMeta(name){
  if(name==='reset-confirm')screen.innerHTML=`${header('RESET PROGRESS','settings')}<p>This resets this device’s coins, records, unlocks and settings. A local recovery copy is retained.</p>${button('RESET LOCAL PROGRESS','reset-now')}${button('KEEP MY PROGRESS','settings','primary')}`;
 }
 function handleMetaAction(a){
+ if(a==='block-blast'){openBlast();return true;}
+ if(a==='salvage'){openSalvage();return true;}
  if(a==='ad-rescue'||a==='ad-double'){void requestReward(a.slice(3));return true;}
  if(a.startsWith('buy-item-')){const id=a.slice(9);if(progress.buyItem(id)){pullProfile();persistProfile();tone(960,.12);notify('ITEM PURCHASED');}else notify('CANNOT PURCHASE ITEM');show('store');return true;}
  if(a.startsWith('ad-item-')){const id=a.slice(8);void requestRewardItem(id);return true;}
