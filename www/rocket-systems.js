@@ -1,4 +1,4 @@
-import { ROCKETS, BALANCE } from './config.js?v=explore-waves-4';
+import { ROCKETS, BALANCE } from './config.js?v=four-games-1';
 export const rocketById=id=>ROCKETS.find(r=>r.id===id)||ROCKETS[0];
 export function createSystems(id='pioneer') {
  const craft=rocketById(id);

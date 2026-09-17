@@ -1,6 +1,6 @@
-import { BALANCE, TAP_CONFIG, ROCKETS } from './config.js?v=explore-waves-4';
-import { createSystems, tickSystems, takeImpact, attractCoin, activateSystem } from './rocket-systems.js?v=explore-waves-4';
-import { Pool, clamp, sweptDistance } from './flight.js?v=explore-waves-4';
+import { BALANCE, TAP_CONFIG, ROCKETS } from './config.js?v=four-games-1';
+import { createSystems, tickSystems, takeImpact, attractCoin, activateSystem } from './rocket-systems.js?v=four-games-1';
+import { Pool, clamp, sweptDistance } from './flight.js?v=four-games-1';
 
 export const TAP = Object.freeze({...TAP_CONFIG,...ROCKETS[0].tapBehavior});
 

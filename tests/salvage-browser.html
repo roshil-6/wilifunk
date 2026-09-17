@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/www/style.css"><style>#app{width:min(100vw,405px);height:100dvh}#qa-readout{position:fixed;bottom:0;left:0;background:#000;color:white;font:12px monospace;z-index:999}</style></head><body><main id="app"><section id="screen"></section></main><output id="qa-readout">Isolated test profile</output><script type="module">
+import {SalvageView} from '/www/salvage-ui.js';import {ProgressStore} from '/www/progression.js';
+const memory=new Map(),store=new ProgressStore({getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)});let id;
+const p=store.startSalvage();id=store.data.salvageRun.id;p.board=Array(64).fill(0);for(let x=0;x<6;x++)p.board[56+x]=3;p.tray=[{shape:1,material:3},{shape:4,material:2},{shape:5,material:4}];p.score=2480;store.saveSalvage(p,id);
+const readout=()=>document.querySelector('#qa-readout').textContent=`TEST WALLET ${store.data.coins} · CHARGES ${store.data.salvageCharges}`;
+const view=new SalvageView(document.querySelector('#screen'),{data:()=>store.data,start:()=>store.startSalvage(),save:p=>store.saveSalvage(p,id),restart:()=>store.restartSalvage(),claim:()=>{const r=store.claimSalvage(id);readout();return r;},reward:s=>store.salvageCoins(s),tutorialSeen:()=>true,seen(){},setting:()=>false,toggle(){},feedback(){},adsAvailable:()=>false,home:()=>{view.destroy();document.querySelector('#screen').textContent='TEST COMPLETE';readout();}});view.start();readout();
+</script></body></html>

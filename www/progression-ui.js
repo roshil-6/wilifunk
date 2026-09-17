@@ -1,4 +1,4 @@
-import {ROCKETS,REGIONS,EXPLORE_MILESTONES,TAP_MILESTONES,COSMETICS,MISSIONS,STORE_ITEMS} from './config.js?v=store-fix-5';
+import {ROCKETS,REGIONS,EXPLORE_MILESTONES,TAP_MILESTONES,COSMETICS,MISSIONS,STORE_ITEMS} from './config.js?v=four-games-1';
 const act=(text,action,cls='')=>`<button class="button ${cls}" data-action="${action}">${text}</button>`;
 const head=(text,back='home')=>`<header class="page-header"><button class="back" data-action="${back}" aria-label="Back">‹</button><h2>${text}</h2></header>`;
 const meters=n=>n<1000?`${Math.floor(n)} m`:`${(n/1000).toFixed(n%1000?1:0)} km`;

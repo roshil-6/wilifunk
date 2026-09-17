@@ -32,6 +32,8 @@ export const TAP_MILESTONES=[
  [10,'100 coins','coins',100],[25,'Orange engine trail','trail','orange'],[50,'250 coins','coins',250],[75,'Ranger solar paint','paint','solar'],[100,'Pilot badge','badge','pilot'],[150,'500 coins','coins',500],[250,'Comet pilot insignia','badge','comet'],[500,'Ace trail','trail','ace'],[750,'Phantom paint','paint','phantom'],[1000,'ACE PILOT','badge','ace']
 ].map(([at,label,type,value])=>({id:`tap-${at}`,at,label,type,value}));
 export const COSMETICS=[
+ {id:'blast-copper',kind:'paint',label:'Block Blast copper paint',color:'#b47d58'},
+ {id:'salvage-veteran',kind:'trail',label:'Salvage veteran trail',color:'#ccba7f'},
  {id:'ion',kind:'trail',label:'Ion trail',color:'#70daff',price:200},{id:'orange',kind:'trail',label:'Orange trail',color:'#ffb363',price:300},{id:'aurora',kind:'trail',label:'Aurora trail',color:'#98e8cc'},{id:'ace',kind:'trail',label:'Ace trail',color:'#d6bcff'},{id:'arctic',kind:'paint',label:'Arctic paint',color:'#a1cde8',price:500},{id:'nebula',kind:'paint',label:'Nebula paint',color:'#9890ce'},{id:'solar',kind:'paint',label:'Solar paint',color:'#e6af69'},{id:'phantom',kind:'paint',label:'Phantom paint',color:'#6d739c'}
 ];
 export const MISSIONS=[

@@ -7,7 +7,7 @@ function fixture(){
  const gradient={addColorStop(){}};
  const context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient},{get:(o,k)=>o[k]||(()=>{})});
  const element=()=>({style:{},hidden:false,innerHTML:'',textContent:'',className:'',classList:{add(){},remove(){}},addEventListener(){},getContext:()=>context,getBoundingClientRect:()=>({width:390,height:780,left:0,top:0}),setPointerCapture(){}});
- const scope={console,Math,Date,Set,Array,JSON,Number,String,Infinity,performance:{now:()=>0},requestAnimationFrame(){},matchMedia:()=>({matches:false}),localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},navigator:{},document:{getElementById:id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);},createElement:element,querySelector:()=>null,addEventListener(){}},window:{devicePixelRatio:1,addEventListener(){}}};
+ const scope={setTimeout(){},clearTimeout(){},console,Math,Date,Set,Array,JSON,Number,String,Infinity,performance:{now:()=>0},requestAnimationFrame(){},matchMedia:()=>({matches:false}),localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},navigator:{},document:{getElementById:id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);},createElement:element,querySelector:()=>null,addEventListener(){}},window:{devicePixelRatio:1,addEventListener(){}}};
  vm.createContext(scope);
  const flight=fs.readFileSync('www/flight.js','utf8').replace(/^import [^\n]*\n/gm,'').replaceAll('export ','').replace('const WIDTH = 390, HEIGHT = 780;','const W = 390, H = 780;').replaceAll('WIDTH','W').replaceAll('HEIGHT','H');
  const game=fs.readFileSync('www/game.js','utf8').replaceAll('export ','').trimStart().replace(/^import [^\n]*\n/gm,'');
@@ -18,7 +18,9 @@ function fixture(){
  const progression=fs.readFileSync('www/progression.js','utf8').replace(/^import [^\n]*\n/gm,'').replaceAll('export ','');
  const tap=fs.readFileSync('www/tap-flight.js','utf8').replace(/^import [^\n]*\n/gm,'').replaceAll('export ','');
  const renderer=fs.readFileSync('www/tap-renderer.js','utf8').replaceAll('export ','');
- vm.runInContext(config+'\n'+systems+'\n'+ui+'\n'+expeditionCode+'\n'+progression+'\n'+flight+'\n'+tap+'\n'+renderer+'\n'+game,scope);
+ const salvage=fs.readFileSync('www/salvage.js','utf8').replaceAll('export ','');
+ const blast=fs.readFileSync('www/block-blast.js','utf8').replaceAll('export ','');
+ vm.runInContext(blast+'\n'+salvage+'\n'+config+'\n'+systems+'\n'+ui+'\n'+expeditionCode+'\n'+progression+'\n'+flight+'\n'+tap+'\n'+renderer+'\n'+game,scope);
  return code=>vm.runInContext(code,scope);
 }
  test('launch remains cinematic for 1.35 seconds and initializes a clean run',()=>{const e=fixture();e('start();update(1);');assert.equal(e('state'),'launch');e('update(.36)');assert.equal(e('state'),'playing');assert.equal(e('ship.y'),602);assert.equal(e('run.saved'),false);});
