@@ -3,7 +3,7 @@
  * Browser-based 2D side-scrolling runner game
  */
 
-import { Game } from './game/Game.js?v=explore-waves-4';
+import { Game } from './game/Game.js?v=four-games-1';
 
 // Initialize game when DOM is ready
 window.addEventListener('load', () => {

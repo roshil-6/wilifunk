@@ -1,4 +1,4 @@
-import { REGIONS } from './config.js?v=explore-waves-4';
+import { REGIONS } from './config.js?v=four-games-1';
 export const WIDTH = 390, HEIGHT = 780;
 export const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 export const ZONES = REGIONS;
