@@ -1,10 +1,12 @@
 {
-  "name": "wilifunk-3d",
+  "name": "spacehull",
   "version": "1.0.0",
-  "description": "3D Parkour Runner Game",
+  "description": "SPACEHULL portrait space survival arcade game",
   "type": "module",
   "scripts": {
-    "dev": "npx http-server www -p 8000 -c-1"
+    "dev": "python -m http.server 8000 --directory www",
+    "test": "node --test --test-isolation=none tests/*.test.js",
+    "android:copy": "cap copy android"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
