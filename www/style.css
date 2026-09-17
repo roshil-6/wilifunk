@@ -139,8 +139,8 @@
 .sg-hud{height:clamp(58px,10vh,90px);max-height:90px}.sg-flight{padding-bottom:12px;position:relative}.sg-feedback{position:absolute;top:83px;left:12px;right:12px;margin:0;pointer-events:none}.sg-progress button{margin:6px auto;padding:6px 10px;min-height:32px}.sg-board{max-width:calc(100dvh - 300px);margin-inline:auto}.sg-recovered{font-size:48px;color:#a6bba9;margin:-15px 0 10px}
 #screen.salvage-screen{touch-action:pan-y}.sg-flight{touch-action:none}.sg-overlay{touch-action:pan-y}
 .activity-art{width:54px;height:54px;border-radius:8px;display:flex;align-items:center;justify-content:center;background-size:cover;font-size:26px;flex-shrink:0;margin:3px 0 3px 6px}
-.explore-art{background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;box-shadow:0 4px 12px rgba(59,130,246,0.4)}
-.tap-art{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;box-shadow:0 4px 12px rgba(139,92,246,0.4)}
+.explore-art{background-image:url('art/salvage-bay.svg');background-position:center 20%}
+.tap-art{background-image:url('art/spacehull-cinematic.png');background-position:center bottom}
 .salvage-art{color:#d6b678;background:linear-gradient(145deg,#6f5332,#14232a 65%);text-shadow:3px 4px #03090e}
 .blast-art{color:#8ec6c2;background:linear-gradient(145deg,#314d61,#101b29 65%);text-shadow:5px 7px #6b5240}
 .four-activities .activity-card{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;margin:0;padding:6px 14px;text-align:left;background:linear-gradient(100deg,#0c1b28e8,#030a12d9);border:1.5px solid #2a4365;border-radius:12px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
