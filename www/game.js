@@ -374,7 +374,15 @@ function draw(){
 }
 function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);}
 const renderTap = createTapRenderer(surface);
-window.addEventListener('resize',resize);resize();persistProfile();show('home');let last=performance.now();
+function playStudioIntro(){
+ const el=$('studioIntro');
+ if(!el)return;
+ setTimeout(()=>{
+  el.classList.add('fade-out');
+  setTimeout(()=>{el.hidden=true;},600);
+ },2200);
+}
+window.addEventListener('resize',resize);resize();persistProfile();show('home');playStudioIntro();let last=performance.now();
 function frame(now){if(document.hidden){last=now;requestAnimationFrame(frame);return;}const raw=(now-last)/1000;last=now;if(raw>.023)slowFrames++;else slowFrames=Math.max(0,slowFrames-1);if(settings.graphics==='LOW')quality=.45;else if(settings.graphics==='HIGH')quality=1;else if(slowFrames>90)quality=.5;const dt=Math.min(raw,.033);if(state!=='paused')update(dt);draw();requestAnimationFrame(frame);}requestAnimationFrame(frame);
 
 
