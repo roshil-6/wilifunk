@@ -92,20 +92,40 @@
 #app:has(#arrows:not([hidden])) #hud .fuel{bottom:auto}
 #flightProgress{background:linear-gradient(100deg,#07111cec,#11101cec);border-color:#a28a5048;padding:10px 12px}#flightRegion{color:#f0c983;letter-spacing:1px}#nextMilestone{font-size:10px;letter-spacing:.1px;color:#e1decd}.journey-track i{background:linear-gradient(90deg,#a0763f,#f1d089)}
 
-/* Power-up Store */
-.store-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
-.store-card{background:linear-gradient(130deg,#0f1e35e8,#070e1ce8);border:1px solid #5a7ea866;border-radius:12px;padding:16px 14px;text-align:center;position:relative}
-.store-card.maxed{opacity:.5}
-.store-icon{font-size:36px;line-height:44px;display:block;margin-bottom:8px}
-.store-card strong{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;display:block;margin-bottom:6px}
-.store-card p{font-size:10px;color:#9ab0cc;line-height:1.5;margin:0 0 10px}
-.store-owned{font-size:10px;color:#7dd6c2;font-weight:600;margin-bottom:8px;display:block}
-.store-buy{width:100%;border:1px solid #7eb8e477;background:linear-gradient(110deg,#1a3558cc,#0c1a2fcc);border-radius:8px;padding:10px;font-size:11px;font-weight:700;letter-spacing:1px;color:#e8edfa}
-.store-buy:disabled{opacity:.35;cursor:default}
-.store-buy.ad-btn{border-color:#c9a44e77;background:linear-gradient(110deg,#3a2a10cc,#1e1608cc);color:#f5d98a}
-.store-section{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:#8ea4c1;margin:20px 0 10px}
-.item-hud{position:absolute;right:6%;top:50%;transform:translateY(-50%);pointer-events:none;font-size:12px;font-weight:700;color:#c8e0f5;letter-spacing:.5px}
-.item-hud span{display:inline-block;margin-left:6px;font-size:18px;vertical-align:middle}
+/* Power-up Store & Progression UI - Subway Surfers Level Design System */
+.store-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+.store-card{background:linear-gradient(145deg,#0d1c33,#050a14);border:2px solid #2a4365;border-radius:16px;padding:16px 12px;text-align:center;position:relative;box-shadow:0 8px 24px rgba(0,0,0,0.6);display:flex;flex-direction:column;justify-content:space-between;transition:transform .15s ease,border-color .15s ease}
+.store-card:active{transform:scale(0.97)}
+.store-card.maxed{opacity:.6;border-color:#334155;background:#090d16}
+.store-badge{position:absolute;top:10px;right:10px;background:#1e293b;border:1px solid #3b82f6;color:#60a5fa;font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0.5px}
+.store-icon{width:48px;height:48px;margin:8px auto;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1e293b 0%,#0f172a 100%);border-radius:12px;border:1px solid #334155}
+.store-svg{width:28px;height:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))}
+.store-card strong{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:800;letter-spacing:1.5px;color:#f8fafc;margin:6px 0 4px;text-transform:uppercase}
+.store-card p{font-size:10.5px;color:#94a3b8;line-height:1.45;margin:0 0 12px;flex-grow:1}
+.store-buy{width:100%;border:2px solid #3b82f6;background:linear-gradient(135deg,#2563eb,#1d4ed8);border-radius:10px;padding:10px 4px;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:800;letter-spacing:1px;color:#ffffff;box-shadow:0 4px 12px rgba(37,99,235,0.35);margin-top:4px}
+.store-buy:not(:disabled):active{transform:translateY(1px);box-shadow:none}
+.store-buy:disabled{opacity:.4;cursor:default;border-color:#475569;background:#1e293b;box-shadow:none;color:#94a3b8}
+.store-buy.ad-btn{border-color:#f59e0b;background:linear-gradient(135deg,#d97706,#b45309);color:#fffbe6;box-shadow:0 4px 12px rgba(217,119,6,0.35);margin-top:6px}
+
+/* Milestones & Missions Cards - Vibrant & Ultra Legible */
+.progress-summary{padding:20px 16px;background:linear-gradient(135deg,#0f172a,#020617);border:2px solid #3b82f6;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,0.5);margin:16px 0 24px;text-align:center}
+.progress-summary strong{font-family:'Orbitron',sans-serif;font-weight:800;font-size:26px;color:#f8fafc;letter-spacing:1px;display:block;margin-top:8px}
+.progress-summary p{font-size:11.5px;font-weight:700;color:#38bdf8;letter-spacing:0.5px;margin-top:4px}
+.space-road{padding-left:28px;margin-left:14px;border-left:2px dashed #334155}
+.road-stop{position:relative;min-height:84px;display:flex;align-items:flex-start;gap:16px;margin-bottom:8px}
+.road-orb{position:absolute;left:-45px;top:0;width:34px;height:34px;border:2px solid #475569;background:#0f172a;border-radius:50%;display:grid;place-items:center;color:#64748b;font-weight:800;font-size:13px}
+.road-orb.region{background:radial-gradient(circle at 30% 30%,#6366f1,#1e1b4b);border-color:#818cf8;color:#e0e7ff}
+.road-stop.reached .road-orb{border-color:#10b981;background:#064e3b;color:#34d399;box-shadow:0 0 12px rgba(16,185,129,0.4)}
+.road-stop strong{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;color:#f1f5f9}
+.road-stop p{font-size:11px;color:#94a3b8;margin-top:4px;font-weight:600}
+.road-current{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;color:#10b981;padding:0 0 16px;display:flex;align-items:center;gap:6px}
+
+.mission-card{background:linear-gradient(135deg,#0f172a,#090d16);border:2px solid #1e293b;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.mission-card strong{font-family:'Orbitron',sans-serif;font-size:12.5px;font-weight:700;color:#f8fafc;letter-spacing:0.5px}
+.mission-card p{font-size:11.5px;color:#94a3b8;margin:8px 0 10px;display:flex;justify-content:space-between;font-weight:600}
+.mission-card p span{color:#fbbf24;font-weight:700}
+.mission-card progress{width:100%;height:8px;border-radius:4px;overflow:hidden;accent-color:#10b981;background:#1e293b;border:0}
+.mission-card .button{margin-top:14px;background:linear-gradient(135deg,#10b981,#059669);border:2px solid #34d399;font-family:'Orbitron',sans-serif;font-weight:800;letter-spacing:1px}
 
 /* Studio Intro Splash Screen */
 .studio-intro{position:absolute;inset:0;z-index:99;background:#030712;display:flex;align-items:center;justify-content:center;opacity:1;transition:opacity .6s ease-out;pointer-events:auto}
